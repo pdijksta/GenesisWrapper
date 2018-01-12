@@ -3,14 +3,25 @@ import numpy as np
 import h5py
 
 class GenesisSimulation:
+
+    comment_chars = ('!',)
+    default_dict = {
+            'npart': 8192.,
+            'sample': 2.,
+            }
+
     def __init__(self, infile):
         self.infile = infile
-        self.input = InputParser(self.infile)
+        self.input = InputParser(self.infile, self.comment_chars, self.default_dict)
         dirname = os.path.dirname(self.infile)
         self.outfile = os.path.join(dirname, self.input['rootname']+'.out.h5')
 
         self._dict = {}
-        self.zplot = self['Global/zplot']
+        try:
+            self.zplot = self['Global/zplot']
+        except KeyError:
+            print('Old version of genesis. No zplot available.')
+            self.zplot = None
         self.time = self['Global/time']
 
     def __getitem__(self, key):
@@ -36,21 +47,21 @@ class GenesisSimulation:
 
 class InputParser(dict):
 
-
-    def __init__(self, infile):
-        dict.__init__(self)
+    def __init__(self, infile, comment_chars, default_dict):
+        super().__init__(self)
         self.infile = infile
+        self.comment_chars = comment_chars
+        self.default_dict = default_dict
 
         with open(self.infile, 'r') as f:
             lines = f.readlines()
 
-        self.update({
-            'npart': 8192.,
-            'sample': 2.,
-            })
+        self.update(default_dict)
         for line in lines:
-            line = line.strip()
-            if '=' in line:
+            line = line.strip().replace(',','').replace(';','')
+            if line and line[0] in self.comment_chars:
+                pass
+            elif '=' in line:
                 attr = line.split('=')[0].strip()
                 value = line.split('=')[-1].strip()
                 try:
@@ -61,9 +72,11 @@ class InputParser(dict):
 
 
     def estimate_memory(self):
+        # From Sven
         n_slices = self['slen'] / self['lambda0'] / self['sample']
         memory_field = self['ngrid']**2*n_slices*16
         memory_beam = self['npart']*n_slices*6*8
-        safety_factor = 1.5
+        safety_factor = 1.2 # more accurate than factor of 2?
 
         return (memory_field+memory_beam)*safety_factor
+
