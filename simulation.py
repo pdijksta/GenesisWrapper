@@ -1,6 +1,8 @@
 import os
-import numpy as np
 import h5py
+import numpy as np
+from scipy.constants import c
+
 
 class GenesisSimulation:
 
@@ -21,13 +23,22 @@ class GenesisSimulation:
             self.zplot = self['Global/zplot']
         except KeyError:
             print('Old version of genesis. No zplot available.')
-            self.zplot = None
-        self.time = self['Global/time']
+            sample = int(self['Global/sample'])
+            self.zplot = np.append(self['Lattice/z'][::sample],
+                    self['Lattice/z'][-1]+self['Lattice/dz'][-1])
+        time = self['Global/time']
+        if time.shape == ():
+            time = np.arange(0, self['Beam/emitx'].shape[1], dtype=float)*self['Global/sample']*self['Global/lambdaref']/c
+        self.time = time
 
     def __getitem__(self, key):
         if key not in self._dict:
             with h5py.File(self.outfile, 'r') as ff:
-                self._dict[key] = np.array(ff[key])
+                val = np.array(ff[key])
+                if len(val.shape) == 1:
+                    val = np.squeeze(val)
+                val.setflags(write=False) # Immutable array
+                self._dict[key] = val
         return self._dict[key]
 
     def keys(self):
@@ -44,6 +55,48 @@ class GenesisSimulation:
 
         with h5py.File(self.outfile, 'r') as ff:
             ff.visit(lambda x: name_and_size(x, ff))
+
+    def get_rms_pulse_length(self):
+        time = self.time
+        power = self['Field/power'][-1,:]
+
+        int_power = np.trapz(power, time)
+        int_time_sq = np.trapz(time**2*power, time) / int_power
+        int_time = np.trapz(time*power, time) / int_power
+
+        rms_time = np.sqrt(int_time_sq - int_time**2)
+        return rms_time
+
+    def get_total_pulse_power(self):
+        return np.trapz(self['Field/power'][-1,:], self.time)
+
+    def get_m1(self, dimension, mu, mup):
+        assert dimension in ('x', 'y')
+
+        beta = self['Beam/beta'+dimension]
+        if np.all(beta < 0.01):
+            print('Correcting for wrong beta in Genesis')
+            beta = beta*self['Global/gamma0']
+        assert not np.any(np.diff(beta) > 1e-5)
+
+        beta = beta[0,0]
+        alpha = self['Beam/alpha'+dimension][0,0]
+        gamma = (1. + alpha**2)/beta
+        emittance = self['Beam/emit'+dimension][0,0]
+
+        rms_bunch_length = self.get_rms_bunch_length()
+        m1 = 1./emittance * (beta*mup**2 + gamma*mu**2 + 2*alpha*mu*mup) * rms_bunch_length
+        return m1
+
+    def get_rms_bunch_length(self):
+        zz = self.time*c
+        curr = self['Beam/current']
+
+        int_zz_sq = np.sum(zz**2*curr)/np.sum(curr)
+        int_zz = np.sum(zz*curr)/np.sum(curr)
+
+        return np.sqrt(int_zz_sq - int_zz**2)
+
 
 class InputParser(dict):
 
@@ -76,7 +129,7 @@ class InputParser(dict):
         n_slices = self['slen'] / self['lambda0'] / self['sample']
         memory_field = self['ngrid']**2*n_slices*16
         memory_beam = self['npart']*n_slices*6*8
-        safety_factor = 1.2 # more accurate than factor of 2?
+        safety_factor = 1.5 # more accurate than factor of 2?
 
         return (memory_field+memory_beam)*safety_factor
 
