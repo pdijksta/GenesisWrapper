@@ -23,10 +23,17 @@ class GenesisSimulation:
             self.zplot = self['Global/zplot']
         except KeyError:
             print('Old version of genesis. No zplot available.')
-            sample = int(self['Global/sample'])
-            self.zplot = np.append(self['Lattice/z'][::sample],
-                    self['Lattice/z'][-1]+self['Lattice/dz'][-1])
+            if (self['Field/power'].shape[0] == self['Lattice/z'].shape[0]+1):
+                self.zplot = np.append(self['Lattice/z'], self['Lattice/z'][-1]+self['Lattice/dz'][-1])
+            else:
+                sample = int(self['Global/sample'])
+                self.zplot = self['Lattice/z'][::sample]
+        if self['Field/power'].shape[0] != self.zplot.shape[0]:
+            print('error', self['Field/power'].shape[0], self.zplot.shape[0])
+            import pdb; pdb.set_trace()
+
         time = self['Global/time']
+
         if time.shape == ():
             time = np.arange(0, self['Beam/emitx'].shape[1], dtype=float)*self['Global/sample']*self['Global/lambdaref']/c
         self.time = time
@@ -34,7 +41,14 @@ class GenesisSimulation:
     def __getitem__(self, key):
         if key not in self._dict:
             with h5py.File(self.outfile, 'r') as ff:
-                val = np.array(ff[key])
+                try:
+                    raise_ = False
+                    val = np.array(ff[key])
+                except KeyError:
+                    raise_ = True
+                # Reduce verbosity
+                if raise_:
+                    raise KeyError('Key %s not found in %s' % (key, self.outfile))
                 if len(val.shape) == 1:
                     val = np.squeeze(val)
                 val.setflags(write=False) # Immutable array
@@ -58,13 +72,17 @@ class GenesisSimulation:
 
     def get_rms_pulse_length(self):
         time = self.time
-        power = self['Field/power'][-1,:]
+        power = self['Field/power'][-1,:].copy()
+        power = np.nan_to_num(power)
 
         int_power = np.trapz(power, time)
-        int_time_sq = np.trapz(time**2*power, time) / int_power
-        int_time = np.trapz(time*power, time) / int_power
+        if int_power == 0:
+            rms_time = 0
+        else:
+            int_time_sq = np.trapz(time**2*power, time) / int_power
+            int_time = np.trapz(time*power, time) / int_power
 
-        rms_time = np.sqrt(int_time_sq - int_time**2)
+            rms_time = np.sqrt(int_time_sq - int_time**2)
         return rms_time
 
     def get_total_pulse_power(self):
