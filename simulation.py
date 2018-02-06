@@ -3,6 +3,8 @@ import h5py
 import numpy as np
 from scipy.constants import c
 
+from . import averagePower
+
 
 class GenesisSimulation:
 
@@ -11,9 +13,15 @@ class GenesisSimulation:
             'npart': 8192.,
             'sample': 2.,
             }
+    warn_geo = True
 
-    def __init__(self, infile):
-        self.infile = infile
+    def __init__(self, infile, _file_=None):
+
+        if _file_ is None:
+            self.infile = infile
+        else:
+            self.infile = os.path.join(os.path.dirname(_file_), infile)
+
         self.input = InputParser(self.infile, self.comment_chars, self.default_dict)
         dirname = os.path.dirname(self.infile)
         self.outfile = os.path.join(dirname, self.input['rootname']+'.out.h5')
@@ -37,6 +45,19 @@ class GenesisSimulation:
         if time.shape == ():
             time = np.arange(0, self['Beam/emitx'].shape[1], dtype=float)*self['Global/sample']*self['Global/lambdaref']/c
         self.time = time
+
+        if GenesisSimulation.warn_geo:
+            print('Warning, adjusting for geometric emittance in buggy genesis version')
+            GenesisSimulation.warn_geo = False
+
+
+        xy = ('x', 'y')
+        self.geom_emittance = {x: self.get_geometric_emittance(x) for x in xy}
+
+        self.beta_twiss = {x: self['Beam/%ssize' % x][0,:]**2 / self.geom_emittance[x] for x in xy}
+        self.alpha_twiss = {x: self['Beam/alpha%s' % x][0,:] for x in xy}
+        self.gamma_twiss = {x: (1.+self.alpha_twiss[x]**2)/self.beta_twiss[x] for x in xy}
+
 
     def __getitem__(self, key):
         if key not in self._dict:
@@ -73,37 +94,21 @@ class GenesisSimulation:
     def get_rms_pulse_length(self):
         time = self.time
         power = self['Field/power'][-1,:].copy()
-        power = np.nan_to_num(power)
+        return averagePower.get_rms_pulse_length(time, power)
 
-        int_power = np.trapz(power, time)
-        if int_power == 0:
-            rms_time = 0
-        else:
-            int_time_sq = np.trapz(time**2*power, time) / int_power
-            int_time = np.trapz(time*power, time) / int_power
-
-            rms_time = np.sqrt(int_time_sq - int_time**2)
-        return rms_time
-
-    def get_total_pulse_power(self):
-        return np.trapz(self['Field/power'][-1,:], self.time)
+    def get_total_pulse_energy(self):
+        return averagePower.get_total_pulse_energy(self.time, self['Field/power'][-1,:])
 
     def get_m1(self, dimension, mu, mup):
         assert dimension in ('x', 'y')
 
-        beta = self['Beam/beta'+dimension]
-        if np.all(beta < 0.01):
-            print('Correcting for wrong beta in Genesis')
-            beta = beta*self['Global/gamma0']
-        assert not np.any(np.diff(beta) > 1e-5)
-
-        beta = beta[0,0]
-        alpha = self['Beam/alpha'+dimension][0,0]
-        gamma = (1. + alpha**2)/beta
-        emittance = self['Beam/emit'+dimension][0,0]
+        beta = self.beta_twiss[dimension][0]
+        alpha = self.alpha_twiss[dimension][0]
+        gamma = self.gamma_twiss[dimension][0]
+        geom_emittance = self.geom_emittance[dimension]
 
         rms_bunch_length = self.get_rms_bunch_length()
-        m1 = 1./emittance * (beta*mup**2 + gamma*mu**2 + 2*alpha*mu*mup) * rms_bunch_length
+        m1 = 1./geom_emittance * (beta*mup**2 + gamma*mu**2 + 2*alpha*mu*mup) * rms_bunch_length**2
         return m1
 
     def get_rms_bunch_length(self):
@@ -114,6 +119,36 @@ class GenesisSimulation:
         int_zz = np.sum(zz*curr)/np.sum(curr)
 
         return np.sqrt(int_zz_sq - int_zz**2)
+
+    def get_geometric_emittance(self, dimension):
+        assert dimension in ('x', 'y')
+        geom_emittance = self['Beam/emit'+dimension][0,0]/self['Global/gamma0']
+
+        if abs(geom_emittance - self.input['ex'])/geom_emittance < 1e-4:
+            if self.warn_geo:
+                print('Warning! Wrong emittance in output!')
+                self.warn_geo = False
+            geom_emittance /= self['Global/gamma0']
+
+        return geom_emittance
+
+    def get_average_beta(self, dimension):
+        assert dimension in ('x', 'y')
+
+        return np.nanmean(self.get_beta_func(dimension))
+
+    def get_beta_func(self, dimension):
+        assert dimension in ('x', 'y')
+
+        xsize = self['Beam/%ssize' % dimension][:,0]
+
+        # assert that beam is uniform along bunch.
+        # Otherwise this method is wrong!
+        s = self['Beam/%ssize' % dimension][0,:]
+        assert np.nanmax(np.abs(s - np.nanmean(s))/np.nanmean(s)) < 1e-4
+
+        em = self.get_geometric_emittance(dimension)
+        return xsize**2/em
 
 
 class InputParser(dict):
