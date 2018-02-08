@@ -47,7 +47,6 @@ class FodoCell:
         eigenvec /= np.sqrt(e[0]*e[2]-e[1]**2)
         eigenvec *= np.sign(eigenvec[0])
         self.beta, self.alpha, self.gamma = eigenvec
-        assert abs(self.beta*self.gamma - self.alpha**2 - 1) < 100*(7/3-4/3-1)
 
 def get_m_aramis(k):
     f = 1/(0.08*k)

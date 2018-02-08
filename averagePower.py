@@ -1,10 +1,13 @@
 import numpy as np
 
-def get_average_power(simulations):
+def get_average_power(simulations, axis=0):
 
     avg_power = 0
     for sim in simulations:
-        avg_power += sim['Field/power'][-1,:]
+        if axis == 0:
+            avg_power += sim['Field/power'][-1,:]
+        elif axis == 1:
+            avg_power += np.sum(sim['Field/power'], axis=1)
 
     avg_power /= len(simulations)
 
@@ -26,3 +29,4 @@ def get_rms_pulse_length(time, power):
 
 def get_total_pulse_energy(time, power):
     return np.trapz(power, time)
+
