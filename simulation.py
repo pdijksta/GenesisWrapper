@@ -7,6 +7,7 @@ from scipy.constants import c
 from . import averagePower
 from . import parser
 from .gaussfit import GaussFit
+from .gainlengthfit import GainLengthFit
 
 _xy = ('x', 'y',)
 
@@ -39,7 +40,7 @@ class GenesisSimulation:
             print('Old version of genesis. No zplot available.')
 
             if zshape == self['Lattice/z'].shape[0]+1:
-                print('AAArGG')
+                print('Lattice/z shape is weird')
                 self.zplot = np.append(self['Lattice/z'], self['Lattice/z'][-1]+self['Lattice/dz'][-1])
             else:
                 output_step = int(self.input['track']['output_step'])
@@ -58,20 +59,17 @@ class GenesisSimulation:
             print('Warning, adjusting for geometric emittance in buggy genesis version')
             GenesisSimulation.warn_geo = False
 
-
-
-
+        # Moved to properties
         self._powerfit = None
         self._gaussian_pulselength = None
 
-        # Moved to properties
         self._beta_twiss, self._alpha_twiss, self._gamma_twiss = None, None, None
         self._geom_emittance = None
 
     @property
     def gaussian_pulselength(self):
         if self._gaussian_pulselength is None:
-            self._gaussian_pulselength = self.powerfit.sigma
+            self._gaussian_pulselength = np.abs(self.powerfit.sigma)
         return self._gaussian_pulselength
 
     @property
@@ -244,6 +242,47 @@ class GenesisSimulation:
 
     def ysize(self, index=-1):
         return self._get_vertical_size('y', index)
+
+    def convertZ(self, array):
+        output_step = int(self.input['track']['output_step'])
+        return np.copy(array[::output_step])
+
+    def maskCutDrifts(self):
+        # Filter out drifts
+        # To be checked if this works for tapered sections
+        diff = np.diff(self.zplot)
+        mask_diff = np.concatenate([[True], (1-diff/diff.min())**2 < 1.01])
+        return mask_diff
+
+    def zplotCutDrifts(self):
+        mask_diff = self.maskCutDrifts()
+        diff_arr = np.concatenate([[0], np.diff(self.zplot)])
+        zplot_cut = np.cumsum(diff_arr[mask_diff])
+        return zplot_cut
+
+
+    def fit_gainLength(self, limits, energy=None):
+
+        if energy is None:
+            energy = np.trapz(self['Field/power'], self.time, axis=-1)
+
+        mask_diff = self.maskCutDrifts()
+        diff_arr = np.concatenate([[0], np.diff(self.zplot)])
+
+        zplot_cut = np.cumsum(diff_arr[mask_diff])
+        energy_cut = energy[mask_diff]
+
+        mask_cut = np.logical_and(zplot_cut > limits[0], zplot_cut < limits[1])
+
+        zplot_fit = zplot_cut[mask_cut]
+        energy_fitdata = energy_cut[mask_cut]
+
+        #fit_func2 = lambda x, a, b: b + a*(x-x[0])
+
+        #yy_fitparams, yy_fitcovar = curve_fit(fit_func2, zplot_fit, np.log(energy_fitdata), p0=(1, energy_fitdata[0]))
+
+        #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
+        return GainLengthFit(zplot_fit, energy_fitdata)
 
 
 # Obsolete
