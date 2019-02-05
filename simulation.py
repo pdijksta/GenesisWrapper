@@ -11,6 +11,9 @@ from .gainlengthfit import GainLengthFit
 
 _xy = ('x', 'y',)
 
+class GenesisWrapperError(Exception):
+    pass
+
 class GenesisSimulation:
 
     comment_chars = ('!',)
@@ -28,7 +31,7 @@ class GenesisSimulation:
         else:
             self.infile = os.path.join(os.path.dirname(_file_), infile)
 
-        self.input = parser.GenesisInputParser(self.infile)# , self.comment_chars, self.default_dict)
+        self.input = parser.GenesisInputParser(self.infile)
         dirname = os.path.dirname(self.infile)
         self.outfile = os.path.join(dirname, self.input['setup']['rootname']+'.out.h5')
 
@@ -283,6 +286,31 @@ class GenesisSimulation:
 
         #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
         return GainLengthFit(zplot_fit, energy_fitdata)
+
+    def getSliceSPEmittance(self, dimension):
+        assert dimension in ('x', 'y')
+
+        if 'importdistribution' not in self.input:
+            raise GenesisWrapperError('Needs importdistribution')
+        infile = self.input['importdistribution']['file']
+        with h5py.File(infile, 'r') as f:
+            x = np.array(f[dimension])
+            xp = np.array(f[dimension+'p'])
+            #p = np.array(f['p'])
+        x0 = x - x.mean()
+        xp0 = xp - xp.mean()
+
+        emit_proj = np.sqrt(np.mean(x0**2)*np.mean(xp0**2) - np.mean(x0*xp0)**2)
+        beta_proj = np.mean(x0**2)/emit_proj
+        gamma_proj = np.mean(xp0**2)/emit_proj
+        alpha_proj = - np.mean(xp0*x0)/emit_proj
+
+        xpos = self['Beam/%sposition' % dimension][0,:]
+        xppos = self['Beam/p%sposition' % dimension][0,:]/self['Beam/energy'][0,:]
+        slice_invariant = gamma_proj*xpos**2 + 2*alpha_proj*xpos*xppos + beta_proj*xppos**2
+
+        return slice_invariant/emit_proj
+
 
 
 # Obsolete
