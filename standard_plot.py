@@ -2,19 +2,33 @@ import numpy as np
 from scipy.constants import c
 import matplotlib.pyplot as plt
 from . import myplotstyle as ms
+from .gaussfit import GaussFit
+
+class StandardPlot:
+    def __init__(self, sim):
+        self.sim = sim
+        self.mask_current = sim['Beam/current'].squeeze() != 0
+        self.time = sim.time[self.mask_current]
 
 def plot(sim, title=None):
     mask_current = sim['Beam/current'].squeeze() != 0
     time = sim.time[mask_current]
-    z_plot = time*c
+    #z_plot = time*c
 
     if title is None:
         title = 'Standard plot for %s' % sim.infile
     fig = ms.figure(title)
-    plt.subplots_adjust(wspace=0.3)
+    plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
-    subplot = ms.subplot_factory(2,4)
+    _subplot = ms.subplot_factory(3,4)
+    subplot_list = []
+
+    def subplot(*args, **kwargs):
+        output = _subplot(*args, **kwargs)
+        subplot_list.append(output)
+        return output
     sp_ctr = 1
+    sp = None
 
     #sp = subplot(sp_ctr, title='Beam centroid coordinates', xlabel='z [m]', ylabel='x [m]', sciy=True, scix=True)
     #sp2 = sp.twinx()
@@ -27,47 +41,86 @@ def plot(sim, title=None):
     #sp2.plot(z_plot, sim['Beam/pxposition'][-1,:][mask_current], label='pxpos end',color='red')
     #ms.comb_legend(sp, sp2)
 
-    sp = subplot(sp_ctr, title='Projected optics', xlabel='s [m]', ylabel='Beam size [m]', sciy=True)
+    sp = subplot(sp_ctr, title='Projected optics', xlabel='s [m]', ylabel=r'$\beta$ [m]')
     sp_ctr += 1
 
-    x0 = np.sqrt(sim['Beam/xposition']**2+sim['Beam/xsize']**2)
-    x = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
-    y0 = np.sqrt(sim['Beam/yposition']**2+sim['Beam/ysize']**2)
-    y = np.nansum(y0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
-    sp.plot(sim.zplot, x, label='x')
-    sp.plot(sim.zplot, y, label='y')
+    #x0 = np.sqrt(sim['Beam/xposition']**2+sim['Beam/xsize']**2)
+    for xy in 'x','y':
+        x0 = sim['Beam/%ssize' % xy]**2/sim['Beam/%ssize' % xy][0]**2*sim['Beam/beta%s' % xy]
+        x = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
+        sp.plot(sim.zplot, x, label=xy)
 
     sp.legend()
 
-    sp = subplot(sp_ctr, title='Slice invariant', xlabel='z [m]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', sciy=True, scix=True)
+    sp = sp_slice = subplot(sp_ctr, title='Slice invariant', xlabel='t [s]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', sciy=True, scix=True)
     sp_ctr += 1
-    sp.plot(z_plot, sim.getSliceSPEmittance('x')[mask_current], label='x')
-    sp.plot(z_plot, sim.getSliceSPEmittance('y')[mask_current], label='y')
+    sp.plot(time, sim.getSliceSPEmittance('x')[mask_current], label='x')
+    sp.plot(time, sim.getSliceSPEmittance('y')[mask_current], label='y')
+    sp.legend()
+
+    sp = subplot(sp_ctr, title='Mismatch', xlabel='t [s]', ylabel='M', scix=True, sharex=sp_slice)
+    sp_ctr += 1
+
+    mean_slice = len(time)//2
+    isnan = np.isnan(sim['Beam/energy'][0])
+    energy = sim['Beam/energy'][0][~isnan]
+    current = sim['Beam/current'][0][~isnan]
+    mean_energy = np.sum(energy*current)/np.sum(current)
+    for xy in 'x','y':
+        beta = sim['Beam/beta%s' % xy].squeeze()[mask_current]
+        alpha = sim['Beam/alpha%s' % xy].squeeze()[mask_current]/mean_energy
+        gamma = (1+alpha**2)/beta
+
+        mismatch = (beta*gamma[mean_slice] - 2*alpha*alpha[mean_slice] + gamma*beta[mean_slice])/2.
+        sp.plot(time, mismatch, label=xy)
+    sp.axvline(time[mean_slice], ls='--', color='black')
+    sp.legend()
+
+    sp = subplot(sp_ctr, title='Beam current', xlabel='t [s]', ylabel='I [A]', sciy=True, scix=True, sharex=sp_slice)
+    sp_ctr += 1
+    sp.plot(time, sim['Beam/current'].squeeze()[mask_current])
+
+    sp = subplot(sp_ctr, title='Emittance', xlabel='t [s]', ylabel='$\epsilon$', sciy=True, scix=True, sharex=sp_slice)
+    sp_ctr += 1
+    sp.plot(time, sim['Beam/emitx'][0,:][mask_current], label='$\epsilon_x$')
+    sp.plot(time, sim['Beam/emity'][0,:][mask_current], label='$\epsilon_y$')
     sp.legend()
 
 
-    sp = subplot(sp_ctr, title='Beam current', xlabel='z [m]', ylabel='I [A]', sciy=True, scix=True)
+    sp = subplot(sp_ctr, title='Initial Energy', xlabel='t [s]', ylabel='$\gamma$', sciy=True, scix=True, sharex=sp_slice)
     sp_ctr += 1
-    sp.plot(z_plot, sim['Beam/current'].squeeze()[mask_current])
+    sp.plot(time, sim['Beam/energy'][0,:][mask_current])
 
-    sp = subplot(sp_ctr, title='Emittance', xlabel='z [m]', ylabel='$\epsilon$', sciy=True, scix=True)
-    sp_ctr += 1
-    sp.plot(z_plot, sim['Beam/emitx'][0,:][mask_current], label='$\epsilon_x$')
-    sp.plot(z_plot, sim['Beam/emity'][0,:][mask_current], label='$\epsilon_y$')
-    sp.legend()
 
-    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [J]')
-    sp_ctr += 1
-    sp.plot(sim.zplot, np.trapz(sim['Field/power'], sim.time, axis=1))
 
-    sp = subplot(sp_ctr, title='Final Pulse', xlabel='t [s]', ylabel='Power [W]', sciy=True)
+    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [J]', sciy=True)
     sp_ctr += 1
-    sp.plot(time, sim['Field/power'][-1][mask_current])
+    sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], sim.time, axis=1))
+
+    sp = subplot(sp_ctr, title='Final Pulse', xlabel='t [s]', ylabel='Power [W]', sciy=True, sharex=sp_slice)
+    sp_ctr += 1
+    sp.plot(time, sim['Field/power'][-1,mask_current])
 
     sp = subplot(sp_ctr, title='Spectrum', xlabel='$\lambda$ [m]', ylabel='Power')
     sp_ctr += 1
     xx, spectrum = sim.get_wavelength_spectrum()
-    sp.plot(c/xx, spectrum)
+    sp.semilogy(c/xx, spectrum)
 
-    return fig
+    gf = GaussFit(c/xx, spectrum, sigma_00=1e-13)
+    sp.plot(gf.xx, gf.yy, label='%e m' % gf.sigma)
+    sp.legend()
+
+    for dim in ('x', 'y'):
+        sp = subplot(sp_ctr, title='Centroid movement %s' % dim, xlabel='s [m]', ylabel='Displacement [m]', sciy=True)
+        len_ = np.sum(mask_current)
+        n_slices = 10
+        for n_index, index in enumerate(np.linspace(0, len_-1, n_slices)):
+            if n_index not in (0, n_slices-1):
+                index = int(index)
+                sp.plot(sim.zplot, sim['Beam/%sposition' % dim][:,mask_current][:,index], label=n_index-1)
+        sp.legend()
+
+
+
+    return fig, subplot_list
 
