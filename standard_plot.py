@@ -52,10 +52,12 @@ def plot(sim, title=None):
 
     sp.legend()
 
-    sp = sp_slice = subplot(sp_ctr, title='Slice invariant', xlabel='t [s]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', sciy=True, scix=True)
+    sp = sp_slice = subplot(sp_ctr, title='Slice invariant', xlabel='t [s]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', scix=True)
     sp_ctr += 1
-    sp.plot(time, sim.getSliceSPEmittance('x')[mask_current], label='x')
-    sp.plot(time, sim.getSliceSPEmittance('y')[mask_current], label='y')
+    ref = int(np.argmin((time-4e-14)**2).squeeze())
+    sp.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
+    sp.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+    sp.axvline(time[len(time)//2], color='black', ls='--')
     sp.legend()
 
     sp = subplot(sp_ctr, title='Mismatch', xlabel='t [s]', ylabel='M', scix=True, sharex=sp_slice)
@@ -91,8 +93,6 @@ def plot(sim, title=None):
     sp_ctr += 1
     sp.plot(time, sim['Beam/energy'][0,:][mask_current])
 
-
-
     sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [J]', sciy=True)
     sp_ctr += 1
     sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], sim.time, axis=1))
@@ -112,15 +112,20 @@ def plot(sim, title=None):
 
     for dim in ('x', 'y'):
         sp = subplot(sp_ctr, title='Centroid movement %s' % dim, xlabel='s [m]', ylabel='Displacement [m]', sciy=True)
+        sp_ctr += 1
         len_ = np.sum(mask_current)
         n_slices = 10
         for n_index, index in enumerate(np.linspace(0, len_-1, n_slices)):
             if n_index not in (0, n_slices-1):
                 index = int(index)
                 sp.plot(sim.zplot, sim['Beam/%sposition' % dim][:,mask_current][:,index], label=n_index-1)
-        sp.legend()
+        sp.legend(title='Slice count')
 
-
+    sp = subplot(sp_ctr, title='Initial optics', xlabel='t [s]', ylabel=r'$\beta$', scix=True, sharex=sp_slice)
+    sp_ctr += 1
+    for dim in ('x', 'y'):
+        sp.plot(time, sim['Beam/beta%s' % dim][0][mask_current], label=dim)
+    sp.legend()
 
     return fig, subplot_list
 

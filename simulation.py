@@ -287,7 +287,7 @@ class GenesisSimulation:
         #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
         return GainLengthFit(zplot_fit, energy_fitdata)
 
-    def getSliceSPEmittance(self, dimension):
+    def getSliceSPEmittance(self, dimension, ref='proj'):
         assert dimension in ('x', 'y')
 
         if 'importdistribution' not in self.input:
@@ -301,16 +301,23 @@ class GenesisSimulation:
         x0 = x - x.mean()
         xp0 = xp - xp.mean()
 
-        emit_proj = np.sqrt(np.mean(x0**2)*np.mean(xp0**2) - np.mean(x0*xp0)**2)
-        beta_proj = np.mean(x0**2)/emit_proj
-        gamma_proj = np.mean(xp0**2)/emit_proj
-        alpha_proj = - np.mean(xp0*x0)/emit_proj
+        if ref == 'proj':
+            emit_ref = np.sqrt(np.mean(x0**2)*np.mean(xp0**2) - np.mean(x0*xp0)**2)
+            beta_ref = np.mean(x0**2)/emit_ref
+            alpha_ref = - np.mean(xp0*x0)/emit_ref
+        else:
+            emit_ref = self['Beam/emit%s' % dimension][0,ref]/self['Beam/energy'][0,ref]
+            beta_ref = self['Beam/beta%s' % dimension][0,ref]
+            # correct a bug in Genesis in the calculation of alpha:
+            alpha_ref = self['Beam/alpha%s' % dimension][0,ref]/self['Beam/energy'][0,ref]
+
+        gamma_ref = (1+alpha_ref**2)/beta_ref
 
         xpos = self['Beam/%sposition' % dimension][0,:]
         xppos = self['Beam/p%sposition' % dimension][0,:]/self['Beam/energy'][0,:]
-        slice_invariant = gamma_proj*xpos**2 + 2*alpha_proj*xpos*xppos + beta_proj*xppos**2
+        slice_invariant = gamma_ref*xpos**2 + 2*alpha_ref*xpos*xppos + beta_ref*xppos**2
 
-        return slice_invariant/emit_proj
+        return slice_invariant/emit_ref
 
 
 
