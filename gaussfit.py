@@ -3,34 +3,60 @@ from scipy.optimize import curve_fit
 #import scipy.stats as stats
 
 class GaussFit:
-    def __init__(self, time, power, print_=False, sigma_00=3e-15):
+    """
+    p0 for 'gauss': scale, mean, sig, const
+    p0 for 'double_gauss': scale1, scale2, mean1, mean2, sig1, sig2, konst
+    """
+    def __init__(self, xx, yy, print_=False, fit='gauss', p0=None):
+
+        if fit == 'gauss':
+            self.fit_func = singleGauss
+        elif fit == 'double_gauss':
+            self.fit_func = doubleGauss
+
         #p0 = (1e10, 3.5e-14, 1e-14)
-        scale_0 = 0.9*np.max(power)
-        mean_0 = np.squeeze(time[np.argmax(power)])
+        scale_0 = 0.9*np.max(yy)
+        mean_0 = np.squeeze(xx[np.argmax(yy)])
 
         # Third instead of half for better stability
-        mask_above_half = np.squeeze(power > np.max(power)/3)
+        mask_above_half = np.squeeze(yy > np.max(yy)/3)
 
         if np.sum(mask_above_half) != 0:
-            sigma_0 = abs(time[mask_above_half][-1] - mean_0)
+            sigma_0 = abs(xx[mask_above_half][-1] - mean_0)
+        const_0 = yy[0]
+
+        if p0 is None and fit == 'gauss':
+            p0 = self.p0 = (scale_0, mean_0, sigma_0, const_0)
+        elif p0 is None and fit == 'double_gauss':
+            raise ValueError('p0 must be provided for double gauss fit')
+        elif p0 is not None:
+            self.p0 = p0
         else:
-            sigma_0 = sigma_00
+            raise Exception('Error in code here')
 
-        sigma_0 = max(sigma_0, sigma_00)
-        const_0 = power[0]
-        p0 = self.p0 = (scale_0, mean_0, sigma_0, const_0)
+        self.popt, self.pcov = curve_fit(self.fit_func, xx, yy, p0=p0)
+        self.yy = self.fit_func(xx, *self.popt)
+        self.xx = xx
 
-        self.popt, self.pcov = curve_fit(self.fit_func, time, power, p0=p0)
-        self.yy = self.fit_func(time, *self.popt)
-        self.xx = time
+        self.yy_in = self.power = yy
 
-        self.power = power
-        self.scale, self.mean, self.sigma, self.const = self.popt
+        if fit == 'gauss':
+            self.scale, self.mean, self.sigma, self.const = self.popt
+        elif fit == 'double_gauss':
+            (self.scale1, self.scale2,
+                self.mean1, self.mean2,
+                self.sigma1, self.sigma2,
+                self.const) = self.popt
 
         if print_:
             print(p0, '\t\t', self.popt)
 
-    def fit_func(self, xx, scale, mean, sig, const):
-        #return scale*stats.norm.pdf(xx, mean, sig)
-        return scale*np.exp(-(xx-mean)**2/(2*sig**2))+const
+def singleGauss(xx, scale, mean, sig, const):
+    #return scale*stats.norm.pdf(xx, mean, sig)
+    return scale*np.exp(-(xx-mean)**2/(2*sig**2))+const
+
+def doubleGauss(xx, scale1, scale2, mean1, mean2, sig1, sig2, const):
+    g1 = singleGauss(xx, scale1, mean1, sig1, 0)
+    g2 = singleGauss(xx, scale2, mean2, sig2, 0)
+    return g1 + g2 + const
 

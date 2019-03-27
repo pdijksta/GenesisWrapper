@@ -2,6 +2,7 @@ import os
 import numpy as np
 import h5py
 from ElegantWrapper.watcher import Watcher, Watcher2
+from copy import deepcopy
 
 def h5_out(h5_file, dict_, overwrite=False):
     if not overwrite and os.path.isfile(h5_file):
@@ -24,7 +25,6 @@ def h5_in_elegant(h5_file):
         for key, val in f['page1/columns'].items():
             out[key] = np.array(val)
     return out
-
 
 def match_dist2(dist, bxm, axm, bym, aym, n_slices, n_slice_to_match):
     beta_match = {'x': bxm, 'y': bym}
@@ -147,4 +147,26 @@ def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, n_slic
     #import pdb; pdb.set_trace()
 
     h5_out(h5_out_filename, particle_match, overwrite=overwrite)
+
+def add_chirp(dist, chirp_peak_to_peak):
+
+    dist_out = deepcopy(dist)
+    t_min = dist['t'].min()
+    t_max = dist['t'].max()
+    del_t = t_max - t_min
+    p_central = dist['p'].mean()
+
+    p_add = chirp_peak_to_peak*p_central * (dist['t'] - dist['t'].mean())/del_t
+
+    dist_out['p'] = dist['p'] + p_add
+    return dist_out
+
+def change_energy(dist, gamma_factor):
+    dist_out = deepcopy(dist)
+    dist_out['p'] *= gamma_factor
+
+    for dim in ('x', 'xp', 'y', 'yp'):
+        dist_out[dim] *= np.sqrt(1/gamma_factor)
+
+    return dist_out
 

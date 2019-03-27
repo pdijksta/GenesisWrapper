@@ -1,4 +1,5 @@
 import os
+import glob
 import h5py
 import numpy as np
 import numpy.fft as fft
@@ -23,8 +24,9 @@ class GenesisSimulation:
             }
     warn_geo = True
 
-    def __init__(self, infile, _file_=None, max_time_len=None, croptime=None):
+    def __init__(self, infile, _file_=None, max_time_len=None, croptime=None, getter_factor=None):
         self.croptime = croptime # Wierd bug
+        self.getter_factor = getter_factor
 
         if _file_ is None:
             self.infile = infile
@@ -35,6 +37,9 @@ class GenesisSimulation:
         dirname = os.path.dirname(self.infile)
         self.outfile = os.path.join(dirname, self.input['setup']['rootname']+'.out.h5')
 
+        self._init()
+
+    def _init(self):
         self._dict = {}
         zshape, tshape = self['Field/power'].shape
         try:
@@ -55,12 +60,12 @@ class GenesisSimulation:
         time = self['Global/time']
 
         if time.shape == ():
-            time = np.arange(0, tshape, dtype=float)*self['Global/sample']*self['Global/lambdaref']/c
+            time = (np.arange(0, tshape, dtype=float)*self['Global/sample']*self['Global/lambdaref']/c)[::-1]
         self.time = time
 
-        if GenesisSimulation.warn_geo:
-            print('Warning, adjusting for geometric emittance in buggy genesis version')
-            GenesisSimulation.warn_geo = False
+        #if GenesisSimulation.warn_geo:
+        #    print('Warning, adjusting for geometric emittance in buggy genesis version')
+        #    GenesisSimulation.warn_geo = False
 
         # Moved to properties
         self._powerfit = None
@@ -68,6 +73,7 @@ class GenesisSimulation:
 
         self._beta_twiss, self._alpha_twiss, self._gamma_twiss = None, None, None
         self._geom_emittance = None
+
 
     @property
     def gaussian_pulselength(self):
@@ -111,7 +117,11 @@ class GenesisSimulation:
             with h5py.File(self.outfile, 'r') as ff:
                 try:
                     raise_ = False
-                    val = np.array(ff[key])
+                    shape = ff[key].shape
+                    if len(shape) == 1 or self.getter_factor is None:
+                        val = np.array(ff[key])
+                    else:
+                        val = np.array(ff[key][:,::self.getter_factor])
                 except KeyError:
                     raise_ = True
                 # Reduce verbosity
@@ -153,7 +163,7 @@ class GenesisSimulation:
         return averagePower.get_rms_pulse_length(time, power)
 
     def get_total_pulse_energy(self):
-        return averagePower.get_total_pulse_energy(self.time, self['Field/power'][-1,:])
+        return -averagePower.get_total_pulse_energy(self.time, self['Field/power'][-1,:])
 
     def get_m1(self, dimension, mu, mup):
         assert dimension in ('x', 'y')
@@ -206,21 +216,28 @@ class GenesisSimulation:
         em = self.get_geometric_emittance(dimension)
         return xsize**2/em
 
-    def get_wavelength_spectrum(self, z_index=-1):
+    def get_wavelength_spectrum(self, *args, **kwargs):
+        raise ValueError('Use get_frequency_spectrum instead')
+
+    def get_frequency_spectrum(self, z_index=-1):
         field_abs = self['Field/intensity-farfield'][z_index,:]
         field_phase = self['Field/phase-farfield'][z_index,:]
+        return self._get_frequency_spectrum(self.time, field_abs, field_phase, self['Global/lambdaref'])
+
+    @staticmethod
+    def _get_frequency_spectrum(time, field_abs, field_phase, lambda_ref):
         signal0 = np.sqrt(field_abs)*np.exp(1j*field_phase)
-        l0 = self['Global/lambdaref']
-        f0 = c/l0
+        f0 = c/lambda_ref
 
         signal_fft = fft.fft(signal0)
         signal_fft_shift = fft.fftshift(signal_fft)
 
-        dt = np.diff(self.time)[0] # "Sample" already included
+        dt = np.diff(time)[0] # "Sample" already included
         nq = 1/(2*dt)
         xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
 
         return xx, np.abs(signal_fft_shift)
+
 
     def z_index(self, z):
         index = int(np.squeeze(np.argmin(np.abs(self.zplot-z))))
@@ -263,7 +280,6 @@ class GenesisSimulation:
         zplot_cut = np.cumsum(diff_arr[mask_diff])
         return zplot_cut
 
-
     def fit_gainLength(self, limits, energy=None):
 
         if energy is None:
@@ -286,6 +302,14 @@ class GenesisSimulation:
 
         #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
         return GainLengthFit(zplot_fit, energy_fitdata)
+
+    def get_input_watcher(self):
+        if 'importdistribution' not in self.input:
+            raise GenesisWrapperError('Needs importdistribution')
+        indistribution = os.path.join(os.path.dirname(self.infile), self.input['importdistribution']['file'])
+        from ElegantWrapper.watcher import Watcher
+        return Watcher(indistribution, no_page1=True)
+
 
     def getSliceSPEmittance(self, dimension, ref='proj'):
         assert dimension in ('x', 'y')
@@ -320,8 +344,87 @@ class GenesisSimulation:
         return slice_invariant/emit_ref
 
 
+class MultiGenesisSimulation(GenesisSimulation):
+    def __init__(self, infiles, _file_=None, max_time_len=None, croptime=None, getter_factor=None):
+        self.croptime = croptime # Wierd bug
+        self.getter_factor = getter_factor
 
-# Obsolete
+        if _file_ is None:
+            self.infiles = infiles
+        else:
+            self.infiles = [os.path.join(os.path.dirname(_file_), x) for x in infiles]
+        self.infile = self.infiles[0]
+
+        self.input = parser.GenesisInputParser(self.infile)
+        self.outfiles = []
+        for infile in self.infiles:
+            dirname = os.path.dirname(infile)
+            self.outfiles.append(os.path.join(dirname, self.input['setup']['rootname']+'.out.h5'))
+
+        self._init()
+
+
+    def __getitem__(self, key):
+        if key not in self._dict:
+            outp = 0
+            for outfile in self.outfiles:
+                if not os.path.isfile(outfile):
+                    raise FileNotFoundError(outfile)
+                with h5py.File(outfile, 'r') as ff:
+                    try:
+                        raise_ = False
+                        shape = ff[key].shape
+                        if len(shape) == 1 or self.getter_factor is None:
+                            val = np.array(ff[key])
+                        else:
+                            val = np.array(ff[key][:,::self.getter_factor])
+                    except KeyError:
+                        raise_ = True
+                    # Reduce verbosity
+                    if raise_:
+                        raise KeyError('Key %s not found in %s' % (key, outfile))
+                    if len(val.shape) == 1:
+                        val = np.squeeze(val)
+                    if val.ndim > 1 and self.croptime is not None:
+                        val = val[:,:self.croptime]
+
+                    val.setflags(write=False) # Immutable array
+                    outp += val
+            self._dict[key] = outp/len(self.outfiles)
+
+        return self._dict[key]
+
+    def get_frequency_spectrum(self, z_index=-1):
+        out_xx = 0
+        out_yy = 0
+
+        for outfile in self.outfiles:
+            with h5py.File(outfile, 'r') as ff:
+                field_abs = np.array(ff['Field/intensity-farfield'])[z_index,:]
+                field_phase = np.array(ff['Field/phase-farfield'])[z_index,:]
+            xx, yy = self._get_frequency_spectrum(self.time, field_abs, field_phase, self['Global/lambdaref'])
+            out_xx += xx
+            out_yy += yy
+
+        return out_xx/len(self.outfiles), out_yy/len(self.outfiles)
+
+    @staticmethod
+    def get_infiles(glob_, basename):
+        """
+        Returns list of files
+        """
+        dirs = glob.glob(glob_)
+        return [os.path.join(d, basename) for d in dirs]
+
+def get_simulation_from_glob(glob_, *args, **kwargs):
+    files = glob.glob(glob_)
+    return MultiGenesisSimulation(files, *args, **kwargs)
+
+
+
+
+
+# Obsolete, but used by ElegantWrapper
 class InputParser(dict):
 
     def __init__(self, infile, comment_chars, default_dict):

@@ -11,6 +11,9 @@ class StandardPlot:
         self.time = sim.time[self.mask_current]
 
 def plot(sim, title=None, s_final_pulse=None, n_slices=10):
+    """
+    Output: fig, subplots_list
+    """
     mask_current = sim['Beam/current'].squeeze() != 0
     time = sim.time[mask_current]
     #z_plot = time*c
@@ -47,42 +50,53 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
     #x0 = np.sqrt(sim['Beam/xposition']**2+sim['Beam/xsize']**2)
     for xy in 'x','y':
         x0 = sim['Beam/%ssize' % xy]**2/sim['Beam/%ssize' % xy][0]**2*sim['Beam/beta%s' % xy]
-        x = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
-        sp.plot(sim.zplot, x, label=xy)
+        beta = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
+        sp.plot(sim.zplot, beta, label=xy)
+        print(title, xy, np.mean(beta))
 
     sp.legend()
 
-    sp = sp_inv = subplot(sp_ctr, title='Slice invariant', xlabel='t [s]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', scix=True)
+    sp_inv = subplot(sp_ctr, title='Slice invariant w.r.t. proj.', xlabel='t [s]', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', scix=True)
     sp_ctr += 1
-    ref = int(np.argmin((time-4e-14)**2).squeeze())
-    sp.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
-    sp.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+    #ref = int(np.argmin((time-4e-14)**2).squeeze())
+    ref = 'proj'
+    sp_inv.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
+    sp_inv.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
     #sp.axvline(time[len(time)//2], color='black', ls='--')
-    sp.legend()
+    sp_inv.legend()
 
-    sp = subplot(sp_ctr, title='Mismatch', xlabel='t [s]', ylabel='M', scix=True, sharex=sp_inv)
+    sp_mm = subplot(sp_ctr, title='Mismatch w.r.t. projected', xlabel='t [s]', ylabel='M', scix=True, sharex=sp_inv)
     sp_ctr += 1
 
-    mean_slice = len(time)//2
+    #mean_slice = len(time)//2
     isnan = np.isnan(sim['Beam/energy'][0])
     energy = sim['Beam/energy'][0][~isnan]
     current = sim['Beam/current'][0][~isnan]
     mean_energy = np.sum(energy*current)/np.sum(current)
+
+
     for xy in 'x','y':
+        beta_ref = np.sum(sim['Beam/beta%s' % xy][0][mask_current]*sim['Beam/current'][0][mask_current])/np.sum(sim['Beam/current'][0][mask_current])
+        alpha_ref = np.sum(sim['Beam/alpha%s' % xy][0][mask_current]*sim['Beam/current'][0][mask_current])/np.sum(sim['Beam/current'][0][mask_current])/mean_energy
+
+        gamma_ref = (1+alpha_ref**2)/beta_ref
         beta = sim['Beam/beta%s' % xy].squeeze()[mask_current]
         alpha = sim['Beam/alpha%s' % xy].squeeze()[mask_current]/mean_energy
         gamma = (1+alpha**2)/beta
 
-        mismatch = (beta*gamma[mean_slice] - 2*alpha*alpha[mean_slice] + gamma*beta[mean_slice])/2.
-        sp.plot(time, mismatch, label=xy)
-    sp.axvline(time[mean_slice], ls='--', color='black')
+        mismatch = (beta*gamma_ref - 2*alpha*alpha_ref + gamma*beta_ref)/2.
+        sp_mm.plot(time, mismatch, label=xy)
+
+    sp_mm.set_ylim(1, None)
+
+    #sp.axvline(time[mean_slice], ls='--', color='black')
     sp.legend()
 
     sp = subplot(sp_ctr, title='Beam current', xlabel='t [s]', ylabel='I [A]', sciy=True, scix=True, sharex=sp_inv)
     sp_ctr += 1
     sp.plot(time, sim['Beam/current'].squeeze()[mask_current])
 
-    sp = subplot(sp_ctr, title='Emittance', xlabel='t [s]', ylabel='$\epsilon$', sciy=True, scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Emittance', xlabel='t [s]', ylabel='$\epsilon_n$', sciy=True, scix=True, sharex=sp_inv)
     sp_ctr += 1
     sp.plot(time, sim['Beam/emitx'][0,:][mask_current], label='$\epsilon_x$')
     sp.plot(time, sim['Beam/emity'][0,:][mask_current], label='$\epsilon_y$')
@@ -95,26 +109,26 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
 
     sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [J]', sciy=True)
     sp_ctr += 1
-    sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], sim.time, axis=1))
+    sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], -sim.time, axis=1))
 
     if s_final_pulse is None:
         index_final_pulse = -1
         z_final_pulse = sim.zplot[-1]
     else:
-        index_final_pulse = np.argmin((sim.zplot-20)**2).squeeze()
+        index_final_pulse = np.argmin((sim.zplot-s_final_pulse)**2).squeeze()
         z_final_pulse = sim.zplot[index_final_pulse]
-    sp = subplot(sp_ctr, title='Final Pulse at %i m' % z_final_pulse, xlabel='t [s]', ylabel='Power [W]', sciy=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t [s]', ylabel='Power [W]', sciy=True, sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time, sim['Field/power'][index_final_pulse,mask_current])
+    sp.semilogy(time, sim['Field/power'][index_final_pulse,mask_current])
 
-    sp = subplot(sp_ctr, title='Spectrum', xlabel='$\lambda$ [m]', ylabel='Power')
+    sp = subplot(sp_ctr, title='Spectrum at %i m' % round(z_final_pulse), xlabel='$\lambda$ [m]', ylabel='Power')
     sp_ctr += 1
-    xx, spectrum = sim.get_wavelength_spectrum()
+    xx, spectrum = sim.get_frequency_spectrum(z_index=index_final_pulse)
     sp.semilogy(c/xx, spectrum)
 
     #gf = GaussFit(c/xx, spectrum, sigma_00=1e-13)
     #sp.plot(gf.xx, gf.yy, label='%e m' % gf.sigma)
-    sp.legend()
+    #sp.legend()
 
     for dim in ('x', 'y'):
         sp = subplot(sp_ctr, title='Centroid movement %s' % dim, xlabel='s [m]', ylabel='Displacement [m]', sciy=True)
@@ -125,7 +139,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
         len_first = sim['Beam/%sposition' % dim].shape[0]
         position0 = sim['Beam/%sposition' % dim][:, mask_current]
         reshaped_position = position0[:,remainder:].reshape((len_first, n_slices, len_full_position//n_slices))
-        reshaped_t = time.reshape((n_slices, len_full_position//n_slices))
+        reshaped_t = time[remainder:].reshape((n_slices, len_full_position//n_slices))
 
         averaged_position = np.mean(reshaped_position, axis=-1)
         averaged_t = np.mean(reshaped_t, axis=-1)
