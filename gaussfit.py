@@ -49,6 +49,7 @@ class GaussFit:
                 self.const) = self.popt
 
         if print_:
+            print("p0, '\t\t', self.popt")
             print(p0, '\t\t', self.popt)
 
 def singleGauss(xx, scale, mean, sig, const):

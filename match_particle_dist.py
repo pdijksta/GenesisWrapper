@@ -99,6 +99,14 @@ def center_dist(dist, n_slices, n_slice_to_center):
     return particle_center
 
 
+def center_dist_proj(dist):
+    particle_center = deepcopy(dist)
+    for dim in ('x', 'y', 'xp', 'yp'):
+        particle_center[dim] -= particle_center[dim].mean()
+
+    return particle_center
+
+
 def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, n_slice_to_match=None, proj=False, center=True, overwrite=False):
     beta_match = {'x': bxm, 'y': bym}
     alpha_match = {'x': axm, 'y': aym}

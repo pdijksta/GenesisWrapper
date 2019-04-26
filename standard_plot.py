@@ -52,7 +52,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
         x0 = sim['Beam/%ssize' % xy]**2/sim['Beam/%ssize' % xy][0]**2*sim['Beam/beta%s' % xy]
         beta = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
         sp.plot(sim.zplot, beta, label=xy)
-        print(title, xy, np.mean(beta))
+        #print(title, xy, np.mean(beta))
 
     sp.legend()
 
@@ -60,8 +60,11 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
     sp_ctr += 1
     #ref = int(np.argmin((time-4e-14)**2).squeeze())
     ref = 'proj'
-    sp_inv.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
-    sp_inv.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+    try:
+        sp_inv.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
+        sp_inv.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+    except:
+        pass
     #sp.axvline(time[len(time)//2], color='black', ls='--')
     sp_inv.legend()
 
@@ -119,7 +122,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
         z_final_pulse = sim.zplot[index_final_pulse]
     sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t [s]', ylabel='Power [W]', sciy=True, sharex=sp_inv)
     sp_ctr += 1
-    sp.semilogy(time, sim['Field/power'][index_final_pulse,mask_current])
+    sp.plot(time, sim['Field/power'][index_final_pulse,mask_current])
 
     sp = subplot(sp_ctr, title='Spectrum at %i m' % round(z_final_pulse), xlabel='$\lambda$ [m]', ylabel='Power')
     sp_ctr += 1

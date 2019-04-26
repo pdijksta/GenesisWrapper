@@ -317,7 +317,7 @@ class GenesisSimulation:
         if 'importdistribution' not in self.input:
             raise GenesisWrapperError('Needs importdistribution')
         indistribution = os.path.join(os.path.dirname(self.infile), self.input['importdistribution']['file'])
-        print(indistribution)
+        #print(indistribution)
         with h5py.File(indistribution, 'r') as f:
             x = np.array(f[dimension])
             xp = np.array(f[dimension+'p'])
