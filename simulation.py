@@ -232,7 +232,7 @@ class GenesisSimulation:
         signal_fft = fft.fft(signal0)
         signal_fft_shift = fft.fftshift(signal_fft)
 
-        dt = np.diff(time)[0] # "Sample" already included
+        dt = abs(np.diff(time)[0]) # "Sample" already included
         nq = 1/(2*dt)
         xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
 
