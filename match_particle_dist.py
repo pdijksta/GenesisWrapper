@@ -26,6 +26,10 @@ def h5_in_elegant(h5_file):
             out[key] = np.array(val)
     return out
 
+def get_watcher_genesis(h5_file):
+    h5_dist = h5_in_genesis(h5_file)
+    return Watcher2({}, h5_dist)
+
 def match_dist2(dist, bxm, axm, bym, aym, n_slices, n_slice_to_match):
     beta_match = {'x': bxm, 'y': bym}
     alpha_match = {'x': axm, 'y': aym}

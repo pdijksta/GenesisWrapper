@@ -151,7 +151,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
             color = ms.colorprog(n_index, n_slices)
             sp.plot(sim.zplot, averaged_position[:, n_index], label=n_index, color=color)
             sp_inv.axvline(averaged_t[n_index], ls='--', color=color)
-        sp.legend(title='Slice count')
+        #sp.legend(title='Slice count')
 
     sp = subplot(sp_ctr, title='Initial slice optics', xlabel='t [s]', ylabel=r'$\beta$ [m]', scix=True, sharex=sp_inv)
     sp_ctr += 1
