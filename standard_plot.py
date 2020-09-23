@@ -2,17 +2,12 @@ import numpy as np
 from scipy.constants import c
 import matplotlib.pyplot as plt
 from . import myplotstyle as ms
-#from .gaussfit import GaussFit
+from .gaussfit import GaussFit
 
-class StandardPlot:
-    def __init__(self, sim):
-        self.sim = sim
-        self.mask_current = sim['Beam/current'].squeeze() != 0
-        self.time = sim.time[self.mask_current]
-
-def plot(sim, title=None, s_final_pulse=None, n_slices=10):
+def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None, centroid_dim='x'):
     """
-    Output: fig, subplots_list
+    fit_pulse_length may be 'gauss'
+    Output: {} with keys fig, subplot_list, gf
     """
     mask_current = sim['Beam/current'].squeeze() != 0
     time = sim.time[mask_current]
@@ -99,10 +94,10 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
     sp_ctr += 1
     sp.plot(time, sim['Beam/current'].squeeze()[mask_current])
 
-    sp = subplot(sp_ctr, title='Emittance', xlabel='t [s]', ylabel='$\epsilon_n$', sciy=True, scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Emittance', xlabel='t [s]', ylabel='$\epsilon_n$ [nm]', sciy=False, scix=True, sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time, sim['Beam/emitx'][0,:][mask_current], label='$\epsilon_x$')
-    sp.plot(time, sim['Beam/emity'][0,:][mask_current], label='$\epsilon_y$')
+    sp.plot(time, sim['Beam/emitx'][0,:][mask_current]*1e9, label='$\epsilon_x$')
+    sp.plot(time, sim['Beam/emity'][0,:][mask_current]*1e9, label='$\epsilon_y$')
     sp.legend()
 
 
@@ -110,9 +105,9 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
     sp_ctr += 1
     sp.plot(time, sim['Beam/energy'][0,:][mask_current])
 
-    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [J]', sciy=True)
+    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s [m]', ylabel='Energy [$\mu$J]', sciy=True)
     sp_ctr += 1
-    sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], -sim.time, axis=1))
+    sp.semilogy(sim.zplot, np.trapz(sim['Field/power']*1e6, -sim.time, axis=1))
 
     if s_final_pulse is None:
         index_final_pulse = -1
@@ -122,7 +117,19 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
         z_final_pulse = sim.zplot[index_final_pulse]
     sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t [s]', ylabel='Power [W]', sciy=True, sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time, sim['Field/power'][index_final_pulse,mask_current])
+
+    yy_final_pulse = sim['Field/power'][index_final_pulse,mask_current]
+    sp.plot(time, yy_final_pulse)
+    gf = None
+    if fit_pulse_length == 'gauss':
+        gf = GaussFit(time, yy_final_pulse)
+        sp.plot(gf.xx, gf.yy, label='$\sigma$=%.3e' % gf.sigma)
+        sp.legend()
+    elif fit_pulse_length is None:
+        pass
+    else:
+        raise ValueError('fit_pulse_length', fit_pulse_length)
+
 
     sp = subplot(sp_ctr, title='Spectrum at %i m' % round(z_final_pulse), xlabel='$\lambda$ [m]', ylabel='Power')
     sp_ctr += 1
@@ -133,25 +140,24 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
     #sp.plot(gf.xx, gf.yy, label='%e m' % gf.sigma)
     #sp.legend()
 
-    for dim in ('x', 'y'):
-        sp = subplot(sp_ctr, title='Centroid movement %s' % dim, xlabel='s [m]', ylabel='Displacement [m]', sciy=True)
-        sp_ctr += 1
-        len_full_position = int(np.sum(mask_current))
-        remainder = len_full_position % n_slices
-        len_full_position -= remainder
-        len_first = sim['Beam/%sposition' % dim].shape[0]
-        position0 = sim['Beam/%sposition' % dim][:, mask_current]
-        reshaped_position = position0[:,remainder:].reshape((len_first, n_slices, len_full_position//n_slices))
-        reshaped_t = time[remainder:].reshape((n_slices, len_full_position//n_slices))
+    sp = subplot(sp_ctr, title='Centroid movement %s' % centroid_dim, xlabel='s [m]', ylabel='Displacement [m]', sciy=True)
+    sp_ctr += 1
+    len_full_position = int(np.sum(mask_current))
+    remainder = len_full_position % n_slices
+    len_full_position -= remainder
+    len_first = sim['Beam/%sposition' % centroid_dim].shape[0]
+    position0 = sim['Beam/%sposition' % centroid_dim][:, mask_current]
+    reshaped_position = position0[:,remainder:].reshape((len_first, n_slices, len_full_position//n_slices))
+    reshaped_t = time[remainder:].reshape((n_slices, len_full_position//n_slices))
 
-        averaged_position = np.mean(reshaped_position, axis=-1)
-        averaged_t = np.mean(reshaped_t, axis=-1)
+    averaged_position = np.mean(reshaped_position, axis=-1)
+    averaged_t = np.mean(reshaped_t, axis=-1)
 
-        for n_index in range(n_slices):
-            color = ms.colorprog(n_index, n_slices)
-            sp.plot(sim.zplot, averaged_position[:, n_index], label=n_index, color=color)
-            sp_inv.axvline(averaged_t[n_index], ls='--', color=color)
-        #sp.legend(title='Slice count')
+    for n_index in range(n_slices):
+        color = ms.colorprog(n_index, n_slices)
+        sp.plot(sim.zplot, averaged_position[:, n_index], label=n_index, color=color)
+        sp_inv.axvline(averaged_t[n_index], ls='--', color=color)
+    #sp.legend(title='Slice count')
 
     sp = subplot(sp_ctr, title='Initial slice optics', xlabel='t [s]', ylabel=r'$\beta$ [m]', scix=True, sharex=sp_inv)
     sp_ctr += 1
@@ -159,5 +165,21 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10):
         sp.plot(time, sim['Beam/beta%s' % dim][0][mask_current], label=dim)
     sp.legend()
 
-    return fig, subplot_list
+    sp = subplot(sp_ctr, title='Pulse evolution', xlabel='t [s]', ylabel='Power [W]', scix=True, sciy=True)
+    sp_ctr += 1
+    for z_pos in np.arange(10, sim.zplot.max(), 10):
+        index = np.argmin((sim.zplot-z_pos)**2).squeeze()
+        z_final_pulse = sim.zplot[index]
+        yy = sim['Field/power'][index,mask_current]
+        sp.semilogy(time[::100], yy[::100], label='%i' % int(z_pos))
+    sp.set_ylim(1e5,None)
+    sp.legend(title='z [m]')
+
+    outp_dict = {
+            'fig': fig,
+            'subplot_list': subplot_list,
+            'gf': gf
+            }
+
+    return outp_dict
 
