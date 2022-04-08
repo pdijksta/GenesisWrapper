@@ -77,9 +77,7 @@ class GenesisSimulation:
 
     @property
     def gaussian_pulselength(self):
-        if self._gaussian_pulselength is None:
-            self._gaussian_pulselength = np.abs(self.powerfit.sigma)
-        return self._gaussian_pulselength
+        return np.abs(self.powerfit.sigma)
 
     @property
     def powerfit(self):

@@ -1,1 +1,1 @@
-../myplotstyle.py
+../ElegantWrapper/myplotstyle.py
