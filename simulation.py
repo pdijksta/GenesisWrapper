@@ -85,6 +85,9 @@ class GenesisSimulation:
             self._powerfit = GaussFit(self.time, self['Field/power'][-1,:])
         return self._powerfit
 
+    def do_powerfit(self, z_index=-1):
+        return GaussFit(self.time, self['Field/power'][z_index,:])
+
     @property
     def beta_twiss(self):
         if self._beta_twiss is None:
@@ -160,8 +163,8 @@ class GenesisSimulation:
             power[power < (np.max(power)*treshold)] = 0
         return averagePower.get_rms_pulse_length(time, power)
 
-    def get_total_pulse_energy(self):
-        return -averagePower.get_total_pulse_energy(self.time, self['Field/power'][-1,:])
+    def get_total_pulse_energy(self, z_index=-1):
+        return -averagePower.get_total_pulse_energy(self.time, self['Field/power'][z_index,:])
 
     def get_m1(self, dimension, mu, mup):
         assert dimension in ('x', 'y')
