@@ -45,7 +45,7 @@ class GenesisSimulation:
         try:
             self.zplot = self['Global/zplot']
         except KeyError:
-            print('Old version of genesis. No zplot available.')
+            #print('Old version of genesis. No zplot available.')
 
             if zshape == self['Lattice/z'].shape[0]+1:
                 print('Lattice/z shape is weird')
