@@ -36,9 +36,9 @@ class lat_file:
         self.lin_taper = lin_taper
         self.quad_taper = quad_taper
         self.und_ctr_quad = und_ctr_quad
-        self.und_ctr = 1
-        self.drift_ctr = 1
-        self.quad_ctr = 1
+        self.und_ctr = 0
+        self.drift_ctr = 0
+        self.quad_ctr = 0
         self.elem_dict = OrderedDict()
         self.elem_list = []
         self.k_list = []
