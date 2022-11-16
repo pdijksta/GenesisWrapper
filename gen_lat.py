@@ -44,15 +44,15 @@ class lat_file:
         self.k_list = []
 
     def add_undulator(self, lambdau, nwig, k):
-        k_lin = k*(1+self.lin_taper*self.und_ctr)
-        if self.und_ctr >= self.und_ctr_quad:
-            k_quad = k_lin*(1+self.quad_taper*(self.und_ctr - self.und_ctr_quad)**2)
+        if self.und_ctr < self.und_ctr_quad:
+            quad_taper = 0
         else:
-            k_quad = k_lin
-        key, string = def_und(self.und_ctr, lambdau, nwig, k_quad)
+            quad_taper = self.quad_taper
+        k_tapered = k*(1+self.lin_taper*self.und_ctr)*(1+quad_taper*(self.und_ctr - self.und_ctr_quad)**2)
+        key, string = def_und(self.und_ctr, lambdau, nwig, k_tapered)
         self.und_ctr += 1
         self.elem_dict[key] = string
-        self.k_list.append(k_quad)
+        self.k_list.append(k_tapered)
         return key
 
     def add_drift(self, ld):
@@ -89,6 +89,23 @@ class lat_file:
             f.write(content)
         return content
 
+def gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad):
+    lat = lat_file(lin_taper, quad_taper, und_ctr_quad)
+    d1 = lat.add_drift(ld1)
+    d2 = lat.add_drift(ld2)
+    q1 = lat.add_quad(lq, k1_foc)
+    q2 = lat.add_quad(lq, k1_defoc)
+    for fodo_ctr in range(n_fodo):
+        un1 = lat.add_undulator(lambdau, nwig, k_init)
+        un2 = lat.add_undulator(lambdau, nwig, k_init)
+        lat.add_line('FODO%i' % (fodo_ctr+1), [un1, d1, q1, d2, un2, d1, q2, d2])
+    if extra_un:
+        un = lat.add_undulator(lambdau, nwig, k_init)
+        lat.add_elem(un)
+    lat.add_final_line()
+    return lat
+
+
 def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.3337, k1_defoc=-0.3337):
     ld = 0.544
     lq = 0.408
@@ -96,20 +113,10 @@ def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
     nwig = 74
     n_fodo = 10
     extra_un = True
-
-    lat = lat_file(lin_taper, quad_taper, und_ctr_quad)
-    d = lat.add_drift(ld)
-    q1 = lat.add_quad(lq, k1_foc)
-    q2 = lat.add_quad(lq, k1_defoc)
-    for fodo_ctr in range(n_fodo):
-        un1 = lat.add_undulator(lambdau, nwig, k_init)
-        un2 = lat.add_undulator(lambdau, nwig, k_init)
-        lat.add_line('FODO%i' % (fodo_ctr+1), [un1, d, q1, d, un2, d, q2, d])
-    if extra_un:
-        un = lat.add_undulator(lambdau, nwig, k_init)
-        lat.add_elem(un)
-
-    lat.add_final_line()
+    lat = gen_fodo_beamline(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
+
+#def chirp_to_lin_taper
+
 
