@@ -54,13 +54,15 @@ class GenesisSimulation:
                 output_step = int(self.input['track']['output_step'])
                 self.zplot = self['Lattice/z'][::output_step]
         if zshape != self.zplot.shape[0]:
-            print('error', zshape, self.zplot.shape[0])
-            import pdb; pdb.set_trace()
+            raise ValueError('error', zshape, self.zplot.shape[0])
+            #import pdb; pdb.set_trace()
 
-        time = self['Global/time']
+        #time = self['Global/time']
 
-        if time.shape == ():
-            time = (np.arange(0, tshape, dtype=float)*self['Global/sample']*self['Global/lambdaref']/c)[::-1]
+        #if time.shape == ():
+        #    time = (np.arange(0, tshape, dtype=float)*self['Global/sample']*self['Global/lambdaref']/c)[::-1]
+        time = -self['Global/s']/c
+        time -= time.min()
         self.time = time
 
         #if GenesisSimulation.warn_geo:
@@ -238,7 +240,6 @@ class GenesisSimulation:
         xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
 
         return xx, np.abs(signal_fft_shift)
-
 
     def z_index(self, z):
         index = int(np.squeeze(np.argmin(np.abs(self.zplot-z))))
