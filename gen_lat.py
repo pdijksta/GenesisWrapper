@@ -48,7 +48,7 @@ class lat_file:
             quad_taper = 0
         else:
             quad_taper = self.quad_taper
-        k_tapered = k*(1+self.lin_taper*self.und_ctr)*(1+quad_taper*(self.und_ctr - self.und_ctr_quad)**2)
+        k_tapered = k*(1-self.lin_taper*self.und_ctr-quad_taper*(self.und_ctr - self.und_ctr_quad)**2)
         key, string = def_und(self.und_ctr, lambdau, nwig, k_tapered)
         self.und_ctr += 1
         self.elem_dict[key] = string
