@@ -103,7 +103,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     sp.legend()
 
 
-    sp_slice_ene = subplot(sp_ctr, title='Slice energy', xlabel='t (s)', ylabel='E (GeV)', sciy=True, scix=True, sharex=sp_inv)
+    sp_slice_ene = subplot(sp_ctr, title='Slice energy', xlabel='t (s)', ylabel='E (GeV)', scix=True, sharex=sp_inv)
     sp_ctr += 1
 
     sp = subplot(sp_ctr, title='Pulse energy', xlabel='s (m)', ylabel='Energy ($\mu$J)', sciy=True)
@@ -174,7 +174,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
         yy = sim['Field/power'][index,mask_current]
         label = '%i' % int(z_pos)
         sp.semilogy(time[::100], yy[::100], label=label)
-        sp_slice_ene.plot(time, sim['Beam/energy'][index,mask_current]/m_e_eV, label=label)
+        sp_slice_ene.plot(time, sim['Beam/energy'][index,mask_current]*m_e_eV/1e9, label=label)
     sp.set_ylim(1e5,None)
     sp.legend(title='z (m)')
     sp_slice_ene.legend()

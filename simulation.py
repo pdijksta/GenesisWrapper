@@ -241,9 +241,9 @@ class GenesisSimulation:
 
         return xx, np.abs(signal_fft_shift)
 
-    def z_index(self, z):
+    def z_index(self, z, warn=True):
         index = int(np.squeeze(np.argmin(np.abs(self.zplot-z))))
-        if index in (0, len(self.zplot)-1):
+        if warn and index in (0, len(self.zplot)-1):
             print('Warning: Index is at limit!')
         return index
 
