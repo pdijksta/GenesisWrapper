@@ -113,7 +113,10 @@ def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, n_slic
     alpha_match = {'x': axm, 'y': aym}
     particle_match = {}
 
-    dist = Watcher(h5_in)
+    if type(h5_in) is str and os.path.isfile(h5_in):
+        dist = Watcher(h5_in)
+    else:
+        dist = Watcher2({}, h5_in)
 
     if proj:
         slice_to_match = dist
