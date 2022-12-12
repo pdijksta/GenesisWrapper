@@ -33,6 +33,8 @@ class GaussFit:
             mask_above_half = np.squeeze(yy > np.max(yy)/2)
             if np.sum(mask_above_half) != 0:
                 sigma_0 = abs(xx[mask_above_half][-1] - xx[mask_above_half][0]) / factor_fwhm
+            else:
+                sigma_0 = 1e-15
 
             p0 = self.p0 = (scale_0, mean_0, sigma_0, const_0)
             if not fit_const:
@@ -65,9 +67,16 @@ class GaussFit:
 
     def jacobi_single_gauss(self, xx, scale, mean, sig, const=0):
         g_minus_const = singleGauss(xx, scale, mean, sig, 0)
-        self.jacobi_arr[:,0] = g_minus_const/scale
-        self.jacobi_arr[:,1] = g_minus_const * (xx-mean)/sig**2
-        self.jacobi_arr[:,2] = g_minus_const * (xx-mean)**2/sig**3
+        if scale == 0:
+            self.jacobi_arr[:,0] = np.inf
+        else:
+            self.jacobi_arr[:,0] = g_minus_const/scale
+        if sig == 0:
+            self.jacobi_arr[:,1] = np.inf
+            self.jacobi_arr[:,2] = np.inf
+        else:
+            self.jacobi_arr[:,1] = g_minus_const * (xx-mean)/sig**2
+            self.jacobi_arr[:,2] = g_minus_const * (xx-mean)**2/sig**3
         #self.jacobi_arr[:,3] = 1 # This never changes
         return self.jacobi_arr
 

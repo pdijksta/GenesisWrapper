@@ -87,8 +87,39 @@ class GenesisSimulation:
             self._powerfit = GaussFit(self.time, self['Field/power'][-1,:])
         return self._powerfit
 
-    def do_powerfit(self, z_index=-1):
-        return GaussFit(self.time, self['Field/power'][z_index,:])
+    def do_powerfit(self, z_index=-1, **kwargs):
+        return GaussFit(self.time, self['Field/power'][z_index,:], **kwargs)
+
+    def pulselength_evolution(self, method, lims=None, maxrange=None):
+        sigmas = []
+        means = []
+
+        for n_z, z in enumerate(self.zplot):
+            xx = self.time
+            yy = self['Field/power'][n_z]
+            mask = None
+            if lims is not None:
+                mask = np.logical_and(xx >= lims[0], xx <= lims[1])
+            elif maxrange is not None:
+                where_max = xx[int(np.argmax(yy).squeeze())]
+                mask = np.logical_and(xx >= where_max - maxrange/2, xx <= where_max + maxrange/2)
+            if mask is not None:
+                xx = xx[mask]
+                yy = yy[mask]
+
+            if method == 'gauss':
+                gf = GaussFit(xx, yy, fit_const=False)
+                sigmas.append(gf.sigma)
+                means.append(gf.mean)
+            elif method == 'rms':
+                if np.sum(yy) == 0:
+                    mean, rms = 0, 0
+                else:
+                    mean = np.sum(xx*yy)/np.sum(yy)
+                    rms = np.sqrt(np.sum((xx-mean)**2*yy)/np.sum(yy))
+                sigmas.append(rms)
+                means.append(mean)
+        return np.array(means), np.array(sigmas)
 
     @property
     def beta_twiss(self):

@@ -6,7 +6,7 @@ from .gaussfit import GaussFit
 
 m_e_eV = m_e*c**2/e
 
-def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None, centroid_dim='x'):
+def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None, centroid_dim='x', figsize=(12,10)):
     """
     fit_pulse_length may be 'gauss'
     Output: {} with keys fig, subplot_list, gf
@@ -17,7 +17,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     if title is None:
         title = 'Standard plot for %s' % sim.infile
-    fig = ms.figure(title)
+    fig = ms.figure(title, figsize=figsize)
     plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
     _subplot = ms.subplot_factory(3,4)
@@ -46,7 +46,10 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     #x0 = np.sqrt(sim['Beam/xposition']**2+sim['Beam/xsize']**2)
     for xy in 'x','y':
-        x0 = sim['Beam/%ssize' % xy]**2/sim['Beam/%ssize' % xy][0]**2*sim['Beam/beta%s' % xy]
+        size0 = sim['Beam/%ssize' % xy][0]
+        x0 = np.zeros_like(sim['Beam/%ssize' % xy])
+        mx0 = size0 != 0
+        x0[:,mx0] = sim['Beam/%ssize' % xy][:,mx0]**2/size0[mx0]**2*sim['Beam/beta%s' % xy][:,mx0]
         beta = np.nansum(x0*sim['Beam/current'].squeeze(), axis=1)/np.sum(sim['Beam/current'].squeeze())
         sp.plot(sim.zplot, beta, label=xy)
         #print(title, xy, np.mean(beta))
@@ -92,7 +95,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     #sp.axvline(time[mean_slice], ls='--', color='black')
     sp.legend()
 
-    sp = subplot(sp_ctr, title='Beam current', xlabel='t (s)', ylabel='I (kA)', sciy=True, scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Beam current', xlabel='t (s)', ylabel='I (kA)', scix=True, sharex=sp_inv)
     sp_ctr += 1
     sp.plot(time, sim['Beam/current'].squeeze()[mask_current]/1e3)
 
