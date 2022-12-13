@@ -56,19 +56,19 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     sp.legend()
 
-    sp_inv = subplot(sp_ctr, title='Slice invariant w.r.t. proj.', xlabel='t (s)', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$', scix=True)
+    sp_inv = subplot(sp_ctr, title='Slice invariant w.r.t. proj.', xlabel='t (fs)', ylabel='$\epsilon$ (single-particle)/$\epsilon_0$')
     sp_ctr += 1
     #ref = int(np.argmin((time-4e-14)**2).squeeze())
     ref = 'proj'
     try:
-        sp_inv.plot(time, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
-        sp_inv.plot(time, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+        sp_inv.plot(time*1e15, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
+        sp_inv.plot(time*1e15, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
     except:
         pass
     #sp.axvline(time[len(time)//2], color='black', ls='--')
     sp_inv.legend()
 
-    sp_mm = subplot(sp_ctr, title='Mismatch w.r.t. projected', xlabel='t (s)', ylabel='M', scix=True, sharex=sp_inv)
+    sp_mm = subplot(sp_ctr, title='Mismatch w.r.t. projected', xlabel='t (fs)', ylabel='M', sharex=sp_inv)
     sp_ctr += 1
 
     #mean_slice = len(time)//2
@@ -88,25 +88,25 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
         gamma = (1+alpha**2)/beta
 
         mismatch = (beta*gamma_ref - 2*alpha*alpha_ref + gamma*beta_ref)/2.
-        sp_mm.plot(time, mismatch, label=xy)
+        sp_mm.plot(time*1e15, mismatch, label=xy)
 
     sp_mm.set_ylim(1, None)
 
     #sp.axvline(time[mean_slice], ls='--', color='black')
     sp.legend()
 
-    sp = subplot(sp_ctr, title='Beam current', xlabel='t (s)', ylabel='I (kA)', scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Beam current', xlabel='t (fs)', ylabel='I (kA)', sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time, sim['Beam/current'].squeeze()[mask_current]/1e3)
+    sp.plot(time*1e15, sim['Beam/current'].squeeze()[mask_current]/1e3)
 
-    sp = subplot(sp_ctr, title='Emittance', xlabel='t (s)', ylabel='$\epsilon_n$ (nm)', sciy=False, scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Emittance', xlabel='t (fs)', ylabel='$\epsilon_n$ (nm)', sciy=False, sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time, sim['Beam/emitx'][0,:][mask_current]*1e9, label='$\epsilon_x$')
-    sp.plot(time, sim['Beam/emity'][0,:][mask_current]*1e9, label='$\epsilon_y$')
+    sp.plot(time*1e15, sim['Beam/emitx'][0,:][mask_current]*1e9, label='$\epsilon_x$')
+    sp.plot(time*1e15, sim['Beam/emity'][0,:][mask_current]*1e9, label='$\epsilon_y$')
     sp.legend()
 
 
-    sp_slice_ene = subplot(sp_ctr, title='Slice energy', xlabel='t (s)', ylabel='E (GeV)', scix=True, sharex=sp_inv)
+    sp_slice_ene = subplot(sp_ctr, title='Slice energy', xlabel='t (fs)', ylabel='E (GeV)', sharex=sp_inv)
     sp_ctr += 1
 
     sp = subplot(sp_ctr, title='Pulse energy', xlabel='s (m)', ylabel='Energy ($\mu$J)', sciy=True)
@@ -119,15 +119,15 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     else:
         index_final_pulse = np.argmin((sim.zplot-s_final_pulse)**2).squeeze()
         z_final_pulse = sim.zplot[index_final_pulse]
-    sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t (s)', ylabel='Power (W)', sciy=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t (fs)', ylabel='Power (W)', sciy=True, sharex=sp_inv)
     sp_ctr += 1
 
     yy_final_pulse = sim['Field/power'][index_final_pulse,mask_current]
-    sp.plot(time, yy_final_pulse)
+    sp.plot(time*1e15, yy_final_pulse)
     gf = None
     if fit_pulse_length == 'gauss':
         gf = GaussFit(time, yy_final_pulse)
-        sp.plot(gf.xx, gf.yy, label='$\sigma$=%.3e' % gf.sigma)
+        sp.plot(gf.xx*1e15, gf.yy, label='$\sigma$=%.3e' % gf.sigma)
         sp.legend()
     elif fit_pulse_length is None:
         pass
@@ -144,7 +144,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     #sp.plot(gf.xx, gf.yy, label='%e m' % gf.sigma)
     #sp.legend()
 
-    sp = subplot(sp_ctr, title='Centroid movement %s' % centroid_dim, xlabel='s (m)', ylabel='Displacement (m)', sciy=True)
+    sp = subplot(sp_ctr, title='Centroid movement %s' % centroid_dim, xlabel='s (m)', ylabel='Displacement ($\mu$m)', sciy=True)
     sp_ctr += 1
     len_full_position = int(np.sum(mask_current))
     remainder = len_full_position % n_slices
@@ -159,28 +159,28 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     for n_index in range(n_slices):
         color = ms.colorprog(n_index, n_slices)
-        sp.plot(sim.zplot, averaged_position[:, n_index], label=n_index, color=color)
-        sp_inv.axvline(averaged_t[n_index], ls='--', color=color)
+        sp.plot(sim.zplot, averaged_position[:, n_index]*1e6, label=n_index, color=color)
+        sp_inv.axvline(averaged_t[n_index]*1e15, ls='--', color=color)
     #sp.legend(title='Slice count')
 
-    sp = subplot(sp_ctr, title='Initial slice optics', xlabel='t (s)', ylabel=r'$\beta$ (m)', scix=True, sharex=sp_inv)
+    sp = subplot(sp_ctr, title='Initial slice optics', xlabel='t (fs)', ylabel=r'$\beta$ (m)', sharex=sp_inv)
     sp_ctr += 1
     for dim in ('x', 'y'):
-        sp.plot(time, sim['Beam/beta%s' % dim][0][mask_current], label=dim)
+        sp.plot(time*1e15, sim['Beam/beta%s' % dim][0][mask_current], label=dim)
     sp.legend()
 
-    sp = subplot(sp_ctr, title='Pulse evolution', xlabel='t (s)', ylabel='Power (W)', scix=True, sciy=True)
+    sp = subplot(sp_ctr, title='Pulse evolution', xlabel='t (fs)', ylabel='Power (W)', sciy=True)
     sp_ctr += 1
     for z_pos in np.arange(10, sim.zplot.max(), 10):
         index = np.argmin((sim.zplot-z_pos)**2).squeeze()
         z_final_pulse = sim.zplot[index]
         yy = sim['Field/power'][index,mask_current]
         label = '%i' % int(z_pos)
-        sp.semilogy(time[::100], yy[::100], label=label)
-        sp_slice_ene.plot(time, sim['Beam/energy'][index,mask_current]*m_e_eV/1e9, label=label)
+        sp.semilogy(time[::100]*1e15, yy[::100], label=label)
+        sp_slice_ene.plot(time*1e15, sim['Beam/energy'][index,mask_current]*m_e_eV/1e9, label=label)
     sp.set_ylim(1e5,None)
-    sp.legend(title='z (m)')
-    sp_slice_ene.legend()
+    sp.legend(title='s (m)')
+    sp_slice_ene.legend(title='s (m)')
 
     outp_dict = {
             'fig': fig,
