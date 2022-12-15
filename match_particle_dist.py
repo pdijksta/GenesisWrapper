@@ -1,7 +1,8 @@
 import os
+from scipy.constants import c
 import numpy as np
 import h5py
-from ElegantWrapper.watcher import Watcher, Watcher2
+from ElegantWrapper.watcher import Watcher, Watcher2, SliceCollection
 from copy import deepcopy
 
 def h5_out(h5_file, dict_, overwrite=False):
@@ -108,7 +109,7 @@ def center_dist_proj(dist):
 
     return particle_center
 
-def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, n_slice_to_match=None, proj=False, center=True, overwrite=False):
+def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, t_to_match=None, n_slice_to_match=None, proj=False, center=True, overwrite=False):
     beta_match = {'x': bxm, 'y': bym}
     alpha_match = {'x': axm, 'y': aym}
     particle_match = {}
@@ -122,7 +123,11 @@ def match_dist(h5_in, h5_out_filename, bxm, axm, bym, aym, n_slices=None, n_slic
         slice_to_match = dist
     else:
         slices = dist.slice_beam(n_slices)
-        if n_slice_to_match is None:
+        if t_to_match is not None:
+            slice_coll = SliceCollection(slices, dist)
+            t_arr = -slice_coll.s_arr/c
+            n_slice_to_match = int(np.argmin((t_arr - t_to_match)**2))
+        elif n_slice_to_match is None:
             n_slice_to_match = n_slices // 2
         slice_to_match = slices[n_slice_to_match]
 
