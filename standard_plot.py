@@ -97,7 +97,13 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     sp = subplot(sp_ctr, title='Beam current', xlabel='t (fs)', ylabel='I (kA)', sharex=sp_inv)
     sp_ctr += 1
-    sp.plot(time*1e15, sim['Beam/current'].squeeze()[mask_current]/1e3)
+    sp.plot(time*1e15, sim['Beam/current'].squeeze()[mask_current]/1e3, label='Current')
+
+    sp2 = sp.twinx()
+    sp2.set_ylabel('Init. energy spread (MeV)')
+    espread = sim['Beam/energyspread'][0,mask_current]*m_e_eV
+    sp2.plot(time*1e15, espread/1e6, color='tab:orange', label='Espread')
+    ms.comb_legend(sp, sp2)
 
     sp = subplot(sp_ctr, title='Emittance', xlabel='t (fs)', ylabel='$\epsilon_n$ (nm)', sciy=False, sharex=sp_inv)
     sp_ctr += 1
@@ -109,9 +115,14 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     sp_slice_ene = subplot(sp_ctr, title='Slice energy', xlabel='t (fs)', ylabel='E (GeV)', sharex=sp_inv)
     sp_ctr += 1
 
-    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s (m)', ylabel='Energy ($\mu$J)', sciy=True)
+    sp = subplot(sp_ctr, title='Pulse energy', xlabel='s (m)', ylabel='Energy (J)', sciy=True)
     sp_ctr += 1
-    sp.semilogy(sim.zplot, np.trapz(sim['Field/power']*1e6, -sim.time, axis=1))
+    sp.semilogy(sim.zplot, np.trapz(sim['Field/power'], -sim.time, axis=1), label='Pulse energy')
+    sp2 = sp.twinx()
+    sp2.set_ylabel('Rms duration (fs)')
+    _, pl = sim.pulselength_evolution(method='rms')
+    sp2.plot(sim.zplot, pl*1e15, color='tab:orange', label='Pulse duration')
+    ms.comb_legend(sp, sp2)
 
     if s_final_pulse is None:
         index_final_pulse = -1
