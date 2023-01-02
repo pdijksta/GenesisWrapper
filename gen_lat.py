@@ -105,9 +105,9 @@ def gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_f
     lat.add_final_line()
     return lat
 
-def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.3337, k1_defoc=-0.3337, n_fodo=None):
-    ld = 0.544
-    lq = 0.408
+def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.554, k1_defoc=-0.554, n_fodo=None):
+    ld = 0.47465
+    lq = 0.1137
     lambdau = 0.068
     nwig = 74
     if n_fodo is None:
@@ -119,4 +119,21 @@ def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
     lat = gen_fodo_beamline(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
+
+def sase1_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.554, k1_defoc=-0.554, n_fodo=None):
+    ld = 0.51315
+    lq = 0.1137
+    lambdau = 0.04
+    nwig = 124
+    if n_fodo is None:
+        n_fodo = 17
+        extra_un = True
+    else:
+        n_fodo = n_fodo
+        extra_un = False
+    lat = gen_fodo_beamline(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
+    content = lat.write_lat(filename)
+    return lat, content
+
+sase2_lat = sase1_lat
 
