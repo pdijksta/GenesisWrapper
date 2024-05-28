@@ -18,7 +18,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     if title is None:
         title = 'Standard plot for %s' % sim.infile
     fig = ms.figure(title, figsize=figsize)
-    plt.subplots_adjust(wspace=0.3, hspace=0.3)
+    plt.subplots_adjust(wspace=0.35, hspace=0.3)
 
     _subplot = ms.subplot_factory(3,4)
     subplot_list = []
