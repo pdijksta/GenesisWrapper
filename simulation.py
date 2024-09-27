@@ -6,6 +6,7 @@ import numpy.fft as fft
 from scipy.constants import c
 
 from . import averagePower
+from .view import ViewBase
 from . import parser
 from .gaussfit import GaussFit
 from .gainlengthfit import GainLengthFit
@@ -15,7 +16,7 @@ _xy = ('x', 'y',)
 class GenesisWrapperError(Exception):
     pass
 
-class GenesisSimulation:
+class GenesisSimulation(ViewBase):
 
     comment_chars = ('!',)
     default_dict = {
@@ -25,8 +26,6 @@ class GenesisSimulation:
     warn_geo = True
 
     def __init__(self, infile, _file_=None, max_time_len=None, croptime=None, getter_factor=None):
-        self.croptime = croptime # Wierd bug
-        self.getter_factor = getter_factor
 
         if _file_ is None:
             self.infile = infile
@@ -35,8 +34,8 @@ class GenesisSimulation:
 
         self.input = parser.GenesisInputParser(self.infile)
         dirname = os.path.dirname(self.infile)
-        self.outfile = os.path.join(dirname, self.input['setup']['rootname']+'.out.h5')
-
+        outfile = os.path.join(dirname, self.input['setup']['rootname']+'.out.h5')
+        ViewBase.__init__(self, outfile, getter_factor, croptime)
         self._init()
 
     def _init(self):
@@ -145,46 +144,6 @@ class GenesisSimulation:
             self._geom_emittance = {x: self.get_geometric_emittance(x) for x in _xy}
         return self._geom_emittance
 
-
-    def __getitem__(self, key):
-        if key not in self._dict:
-            with h5py.File(self.outfile, 'r') as ff:
-                try:
-                    raise_ = False
-                    shape = ff[key].shape
-                    if len(shape) == 1 or self.getter_factor is None:
-                        val = np.array(ff[key])
-                    else:
-                        val = np.array(ff[key][:,::self.getter_factor])
-                except KeyError:
-                    raise_ = True
-                # Reduce verbosity
-                if raise_:
-                    raise KeyError('Key %s not found in %s' % (key, self.outfile))
-                if len(val.shape) == 1:
-                    val = np.squeeze(val)
-                if val.ndim > 1 and self.croptime is not None:
-                    val = val[:,:self.croptime]
-
-                val.setflags(write=False) # Immutable array
-                self._dict[key] = val
-        return self._dict[key]
-
-    def keys(self):
-        with h5py.File(self.outfile, 'r') as ff:
-            out = list(ff.keys())
-        return out
-
-    def print_tree(self):
-        def name_and_size(key, ff):
-            try:
-                print((key, ff[key].shape, ff[key].dtype))
-            except:
-                print(key)
-
-        with h5py.File(self.outfile, 'r') as ff:
-            ff.visit(lambda x: name_and_size(x, ff))
-
     def get_rms_pulse_length(self, treshold=None):
         """
         Treshold: fraction of max value that is set to 0
@@ -253,10 +212,33 @@ class GenesisSimulation:
     def get_wavelength_spectrum(self, *args, **kwargs):
         raise ValueError('Use get_frequency_spectrum instead')
 
-    def get_frequency_spectrum(self, z_index=-1):
-        field_abs = self['Field/intensity-farfield'][z_index,:]
-        field_phase = self['Field/phase-farfield'][z_index,:]
-        return self._get_frequency_spectrum(self.time, field_abs, field_phase, self['Global/lambdaref'])
+    def get_frequency_spectrum(self, z_index=-1, multiply_length=None, mask_time=None):
+        time = self.time
+        if mask_time is None:
+            field_abs = self['Field/intensity-farfield'][z_index,:]
+            field_phase = self['Field/phase-farfield'][z_index,:]
+        else:
+            field_abs = self['Field/intensity-farfield'][z_index,:].copy()
+            field_phase = self['Field/phase-farfield'][z_index,:].copy()
+            field_abs[~mask_time] = 0
+            field_phase[~mask_time] = 0
+
+        if multiply_length is not None:
+            assert multiply_length % 2 == 1
+            field_abs2 = np.zeros(len(field_abs)*multiply_length)
+            field_phase2 = field_abs2.copy()
+            index1 = (len(field_abs2)-len(field_abs))//2
+            index2 = (len(field_abs2)+len(field_abs))//2
+            field_abs2[index1:index2] = field_abs
+            field_phase2[index1:index2] = field_phase
+
+            field_abs = field_abs2
+            field_phase = field_phase2
+            t1 = time.min()
+            t2 = t1 + (time.max() - t1)*multiply_length
+            time = np.linspace(t1, t2, len(time)*multiply_length)
+
+        return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
 
     @staticmethod
     def _get_frequency_spectrum(time, field_abs, field_phase, lambda_ref):
@@ -319,22 +301,23 @@ class GenesisSimulation:
             energy = -np.trapz(self['Field/power'], self.time, axis=-1)
 
         mask_diff = self.maskCutDrifts()
-        diff_arr = np.concatenate([[0], np.diff(self.zplot)])
+        mask_cut = np.logical_and(self.zplot > limits[0], self.zplot < limits[1])
+        #diff_arr = np.concatenate([[0], np.diff(self.zplot)])
+        mask = np.logical_and(mask_cut, mask_diff)
 
-        zplot_cut = np.cumsum(diff_arr[mask_diff])
-        energy_cut = energy[mask_diff]
+        #zplot_cut = np.cumsum(diff_arr[mask_diff])
+        energy_cut = energy[mask]
 
-        mask_cut = np.logical_and(zplot_cut > limits[0], zplot_cut < limits[1])
 
-        zplot_fit = zplot_cut[mask_cut]
-        energy_fitdata = energy_cut[mask_cut]
+        zplot_fit = self.zplot[mask]
+        #energy_fitdata = energy_cut[mask_cut]
 
         #fit_func2 = lambda x, a, b: b + a*(x-x[0])
 
         #yy_fitparams, yy_fitcovar = curve_fit(fit_func2, zplot_fit, np.log(energy_fitdata), p0=(1, energy_fitdata[0]))
 
         #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
-        return GainLengthFit(zplot_fit, energy_fitdata)
+        return GainLengthFit(zplot_fit, energy_cut)
 
     def get_input_watcher(self):
         if 'importdistribution' not in self.input:

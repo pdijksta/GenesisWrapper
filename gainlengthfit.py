@@ -12,7 +12,6 @@ class GainLengthFit:
         self.a, self.b = self.popt
         self.gainlength = 1./self.b
 
-
     def fit_func(self, xx, a, b):
         return a + b*(xx-xx[0])
 
