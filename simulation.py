@@ -1,4 +1,5 @@
 import os
+import re
 import glob
 import h5py
 import numpy as np
@@ -34,11 +35,20 @@ class GenesisSimulation(ViewBase):
 
         self.input = parser.GenesisInputParser(self.infile)
         dirname = os.path.dirname(self.infile)
-        outfile = os.path.join(dirname, self.input['setup']['rootname']+'.out.h5')
+        rootname = self.input['setup']['rootname']
+        outfile = os.path.join(dirname, rootname+'.out.h5')
         ViewBase.__init__(self, outfile, getter_factor, croptime)
         self._init()
 
-        self.particle_dump_files = sorted(glob.glob(os.path.join(dirname, self.input['setup']['rootname'])+'.*.par.h5'))
+        particle_dump_files = glob.glob(os.path.join(dirname, rootname)+'.*.par.h5')
+        particle_dump_z = []
+        regex = re.compile('%s.(\d+).par.h5' % rootname)
+        for pd in particle_dump_files:
+            index = int(regex.match(os.path.basename(pd)).group(1))
+            if index == len(self['Lattice/z']):
+                index -= 1
+            particle_dump_z.append(self['Lattice/z'][index])
+        self.particle_dump_z, self.particle_dump_files = zip(*sorted(zip(particle_dump_z, particle_dump_files)))
 
     def _init(self):
         self._dict = {}

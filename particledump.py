@@ -25,7 +25,7 @@ class Particledump(ViewBase):
                 't': out_arr.copy(),
                 }
         rand1 = np.random.rand(n_particles)
-        rand2 = np.random.rand(n_particles)
+        #rand2 = np.random.rand(n_particles)
         rand3 = (np.random.rand(n_particles)*self.npslice).astype(int)
         cdf = np.cumsum(self.current_arr)
         cdf /= cdf[-1]
@@ -39,13 +39,13 @@ class Particledump(ViewBase):
             slice_t = -self['slicespacing']*slice_index/c
 
             gamma = np.take(self['slice%06i/gamma' % (slice_index+1)], particle_index)
-            #theta = np.take(self['slice%06i/theta' % (slice_index+1)], particle_index)
+            theta = np.take(self['slice%06i/theta' % (slice_index+1)], particle_index)
             out['x'][ctr:ctr+count] = np.take(self['slice%06i/x' % (slice_index+1)], particle_index)
             out['y'][ctr:ctr+count] = np.take(self['slice%06i/y' % (slice_index+1)], particle_index)
             out['xp'][ctr:ctr+count] = np.take(self['slice%06i/px' % (slice_index+1)], particle_index)/gamma
             out['yp'][ctr:ctr+count] = np.take(self['slice%06i/py' % (slice_index+1)], particle_index)/gamma
             out['p'][ctr:ctr+count] = gamma
-            out['t'][ctr:ctr+count] = slice_t + rand2[ctr:ctr+count]*self['slicespacing']/c
+            out['t'][ctr:ctr+count] = slice_t + theta/(2*np.pi)*self['slicespacing']/c
             ctr += count
         assert ctr == n_particles
         out['t'] -= out['t'].min()
