@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.constants import c
+
 from .view import ViewBase
 from ElegantWrapper import watcher
 
@@ -47,6 +48,7 @@ class Particledump(ViewBase):
             out['t'][ctr:ctr+count] = slice_t + rand2[ctr:ctr+count]*self['slicespacing']/c
             ctr += count
         assert ctr == n_particles
+        out['t'] -= out['t'].min()
         return watcher.Watcher2({}, out)
 
     def to_sdds(self, filename, n_particles):

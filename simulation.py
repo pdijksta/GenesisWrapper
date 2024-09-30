@@ -38,6 +38,8 @@ class GenesisSimulation(ViewBase):
         ViewBase.__init__(self, outfile, getter_factor, croptime)
         self._init()
 
+        self.particle_dump_files = sorted(glob.glob(os.path.join(dirname, self.input['setup']['rootname'])+'.*.par.h5'))
+
     def _init(self):
         self._dict = {}
         zshape, tshape = self['Field/power'].shape
@@ -212,7 +214,7 @@ class GenesisSimulation(ViewBase):
     def get_wavelength_spectrum(self, *args, **kwargs):
         raise ValueError('Use get_frequency_spectrum instead')
 
-    def get_frequency_spectrum(self, z_index=-1, multiply_length=None, mask_time=None):
+    def get_frequency_spectrum(self, z_index=-1, multiply_length=None, mask_time=None, multiply_arr=None):
         time = self.time
         if mask_time is None:
             field_abs = self['Field/intensity-farfield'][z_index,:]
@@ -222,6 +224,9 @@ class GenesisSimulation(ViewBase):
             field_phase = self['Field/phase-farfield'][z_index,:].copy()
             field_abs[~mask_time] = 0
             field_phase[~mask_time] = 0
+
+        if multiply_arr is not None:
+            field_abs = field_abs*multiply_arr
 
         if multiply_length is not None:
             assert multiply_length % 2 == 1
@@ -237,6 +242,7 @@ class GenesisSimulation(ViewBase):
             t1 = time.min()
             t2 = t1 + (time.max() - t1)*multiply_length
             time = np.linspace(t1, t2, len(time)*multiply_length)
+
 
         return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
 
