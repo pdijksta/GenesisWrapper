@@ -309,7 +309,7 @@ class GenesisSimulation(ViewBase):
 
     def fit_gainLength(self, limits, energy=None):
         if energy is None:
-            energy = -np.trapz(self['Field/power'], self.time, axis=-1)
+            energy = np.trapz(self['Field/power'], -self.time, axis=-1)
 
         mask_diff = self.maskCutDrifts()
         mask_cut = np.logical_and(self.zplot > limits[0], self.zplot < limits[1])

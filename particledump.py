@@ -14,7 +14,7 @@ class Particledump(ViewBase):
             current_arr.append(self['slice%06i/current' % (n_slice+1)])
         self.current_arr = np.array(current_arr)
 
-    def to_watcher(self, n_particles):
+    def to_watcher(self, n_particles, slice_indices=None, particle_indices=None):
         out_arr = np.zeros(n_particles)
         out = {
                 'x': out_arr,
@@ -24,18 +24,29 @@ class Particledump(ViewBase):
                 'p': out_arr.copy(),
                 't': out_arr.copy(),
                 }
-        rand1 = np.random.rand(n_particles)
-        #rand2 = np.random.rand(n_particles)
-        rand3 = (np.random.rand(n_particles)*self.npslice).astype(int)
-        cdf = np.cumsum(self.current_arr)
-        cdf /= cdf[-1]
-        indices = np.arange(len(self.current_arr))
-        slice_nums = np.interp(rand1, cdf, indices)
-        indices, count = np.unique(slice_nums.astype(int), return_counts=True)
+        if slice_indices is None:
+            rand1 = np.random.rand(n_particles)
+            #rand2 = np.random.rand(n_particles)
+            rand3 = (np.random.rand(n_particles)*self.npslice).astype(int)
+            cdf = np.cumsum(self.current_arr)
+            cdf /= cdf[-1]
+            slice_indices0 = np.arange(len(self.current_arr))
+            slice_nums = np.interp(rand1, cdf, slice_indices0)
+            self.slice_indices, counts = np.unique(slice_nums.astype(int), return_counts=True)
+            self.particle_indices = []
+        else:
+            self.slice_indices = slice_indices
+            counts = [None]*len(slice_indices)
+            self.particle_indices = particle_indices
 
         ctr = 0
-        for slice_index, count in zip(indices, count):
-            particle_index = rand3[ctr:ctr+count]
+        for n_slice, (slice_index, count) in enumerate(zip(self.slice_indices, counts)):
+            if particle_indices is None:
+                particle_index = rand3[ctr:ctr+count]
+                self.particle_indices.append(particle_index)
+            else:
+                particle_index = particle_indices[n_slice]
+                count = len(particle_index)
             slice_t = -self['slicespacing']*slice_index/c
 
             gamma = np.take(self['slice%06i/gamma' % (slice_index+1)], particle_index)
