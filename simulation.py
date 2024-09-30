@@ -77,7 +77,6 @@ class GenesisSimulation(ViewBase):
         self._beta_twiss, self._alpha_twiss, self._gamma_twiss = None, None, None
         self._geom_emittance = None
 
-
     @property
     def gaussian_pulselength(self):
         return np.abs(self.powerfit.sigma)
@@ -195,7 +194,6 @@ class GenesisSimulation(ViewBase):
 
     def get_average_beta(self, dimension):
         assert dimension in ('x', 'y')
-
         return np.nanmean(self.get_beta_func(dimension))
 
     def get_beta_func(self, dimension):
@@ -242,8 +240,6 @@ class GenesisSimulation(ViewBase):
             t1 = time.min()
             t2 = t1 + (time.max() - t1)*multiply_length
             time = np.linspace(t1, t2, len(time)*multiply_length)
-
-
         return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
 
     @staticmethod
@@ -302,27 +298,15 @@ class GenesisSimulation(ViewBase):
         return zplot_cut
 
     def fit_gainLength(self, limits, energy=None):
-
         if energy is None:
             energy = -np.trapz(self['Field/power'], self.time, axis=-1)
 
         mask_diff = self.maskCutDrifts()
         mask_cut = np.logical_and(self.zplot > limits[0], self.zplot < limits[1])
-        #diff_arr = np.concatenate([[0], np.diff(self.zplot)])
         mask = np.logical_and(mask_cut, mask_diff)
 
-        #zplot_cut = np.cumsum(diff_arr[mask_diff])
         energy_cut = energy[mask]
-
-
         zplot_fit = self.zplot[mask]
-        #energy_fitdata = energy_cut[mask_cut]
-
-        #fit_func2 = lambda x, a, b: b + a*(x-x[0])
-
-        #yy_fitparams, yy_fitcovar = curve_fit(fit_func2, zplot_fit, np.log(energy_fitdata), p0=(1, energy_fitdata[0]))
-
-        #fitresult = np.exp(fit_func2(zplot_fit, *yy_fitparams))
         return GainLengthFit(zplot_fit, energy_cut)
 
     def get_input_watcher(self):
@@ -331,7 +315,6 @@ class GenesisSimulation(ViewBase):
         indistribution = os.path.join(os.path.dirname(self.infile), self.input['importdistribution']['file'])
         from ElegantWrapper.watcher import Watcher
         return Watcher(indistribution, no_page1=True)
-
 
     def getSliceSPEmittance(self, dimension, ref='proj'):
         assert dimension in ('x', 'y')
