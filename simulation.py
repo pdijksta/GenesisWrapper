@@ -44,11 +44,10 @@ class GenesisSimulation(ViewBase):
         particle_dump_z = []
         regex = re.compile('%s.(\d+).par.h5' % rootname)
         for pd in particle_dump_files:
-            index = int(regex.match(os.path.basename(pd)).group(1))
-            if index == len(self['Lattice/z']):
-                index -= 1
+            index = min(int(regex.match(os.path.basename(pd)).group(1)), len(self['Lattice/z'])-1)
             particle_dump_z.append(self['Lattice/z'][index])
-        self.particle_dump_z, self.particle_dump_files = zip(*sorted(zip(particle_dump_z, particle_dump_files)))
+        particle_dump_z, self.particle_dump_files = zip(*sorted(zip(particle_dump_z, particle_dump_files)))
+        self.particle_dump_z = np.array(particle_dump_z)
 
     def _init(self):
         self._dict = {}
