@@ -1,12 +1,12 @@
 import numpy as np
-from scipy.constants import c, m_e, e
+from scipy.constants import c, m_e, e, h
 import matplotlib.pyplot as plt
 from . import myplotstyle as ms
 from .gaussfit import GaussFit
 
 m_e_eV = m_e*c**2/e
 
-def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None, centroid_dim='x', figsize=(12,10)):
+def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None, centroid_dim='x', figsize=(12,10), cut_spectrum=False):
     """
     fit_pulse_length may be 'gauss'
     Output: {} with keys fig, subplot_list, gf
@@ -146,10 +146,17 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
         raise ValueError('fit_pulse_length', fit_pulse_length)
 
 
-    sp = subplot(sp_ctr, title='Spectrum at %i m' % round(z_final_pulse), xlabel='$\lambda$ (m)', ylabel='Power (arb. units)')
+    sp = subplot(sp_ctr, title='Spectrum at %i m' % round(z_final_pulse), xlabel='$E$ (eV)', ylabel='Power (arb. units)')
     sp_ctr += 1
     xx, spectrum = sim.get_frequency_spectrum(z_index=index_final_pulse)
-    sp.semilogy(c/xx, spectrum)
+    phot_energy = xx*h/e
+    if cut_spectrum:
+        mean_E = np.sum(phot_energy * spectrum) / np.sum(spectrum)
+        rms = np.sqrt(np.sum(phot_energy**2 * spectrum) / np.sum(spectrum) - (mean_E)**2)
+        mask = np.logical_and(phot_energy > mean_E - 2*rms, phot_energy < mean_E + 2*rms)
+        sp.plot(phot_energy[mask], spectrum[mask])
+    else:
+        sp.semilogy(phot_energy, spectrum)
 
     #gf = GaussFit(c/xx, spectrum, sigma_00=1e-13)
     #sp.plot(gf.xx, gf.yy, label='%e m' % gf.sigma)
