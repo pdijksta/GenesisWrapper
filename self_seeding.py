@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.constants import hbar, h, c, e
 
-from PassiveWFMeasurement import myplotstyle as ms
-
 sqrt = np.emath.sqrt
 
 crystal_table = {}
@@ -208,22 +206,45 @@ class TransferFunction:
         self.omega_ref = omega_ref
 
         self.R_tilde_00 = self.R_00 - self.C
-        diff = (Omega[1]-Omega[0])/(2*np.pi)
-        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), diff))
+        self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
+        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), self.f_diff))
         self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00)) * np.exp(1j*self.omega_ref*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
-        self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)*diff
 
-    def convolute_power_profile(self, time, power_amplitude, phase, lambda_ref):
+        mask_xi = self.xi_0 > 0
+        self.xi_0 = self.xi_0[mask_xi]
+        self.G_tilde_00 = self.G_tilde_00[mask_xi]
+        #self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)
+
+    def convolute_power_profile(self, time, power_amplitude, phase, lambda_ref, max_time=None):
+        if max_time is None:
+            max_time = self.xi_0.max()
+        assert max_time <= self.xi_0.max()
+        diff_time = np.diff(time)[0]
+        add_time = max_time - (time[-1] - time[0])
+        if add_time > 0:
+            print('Extend array')
+            n_add = int(add_time // diff_time)
+            time = np.arange(time[0], time[-1]+n_add*diff_time, diff_time)
+            zero_arr = np.zeros(n_add, dtype=power_amplitude.dtype)
+            power_amplitude = np.concatenate([power_amplitude, zero_arr])
+            phase = np.concatenate([phase, zero_arr])
+
         photon_energy_crystal = self.omega_ref*hbar/e
         photon_energy_power_profile = c/lambda_ref*h/e
         print('Convolution with crystal photon energy %.2f eV and power profile carrier photon energy %.2f eV' % (photon_energy_crystal, photon_energy_power_profile))
-        assert np.diff(time)[0] == np.diff(self.xi_0)[0]
+        diff_xi = np.diff(self.xi_0)[0]
+        assert diff_time > 0
+        assert abs((diff_time - diff_xi)) / diff_xi < 1e-4
+        assert len(time) <= len(self.xi_0)
 
         input_field = np.sqrt(power_amplitude)*np.exp(1j*phase)
-        output_field = np.convolve(input_field, self.G_00)[:len(time)]
-        return output_field
+        output_field = self.C * (input_field + np.convolve(input_field, self.G_tilde_00)[:len(time)]) # Eq. 5 from Yang and Shvydko 2015
+        power_amplitude2 = np.abs(output_field)**2
+        phase2 = np.angle(output_field)
+        return time, power_amplitude2, phase2
 
 if __name__ == '__main__':
+    from PassiveWFMeasurement import myplotstyle as ms
     ms.closeall()
     E_c = 9.83e3
     #E_c = 9.6983884e3
