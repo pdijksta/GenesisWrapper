@@ -201,19 +201,32 @@ class Crystal:
         return TransferFunction(Omega, outp, self.C, self.omega)
 
 class TransferFunction:
-    def __init__(self, Omega, R_00, C, omega):
+    def __init__(self, Omega, R_00, C, omega_ref):
         self.Omega = Omega
         self.R_00 = R_00
         self.C = C
-        self.omega = omega
+        self.omega_ref = omega_ref
 
         self.R_tilde_00 = self.R_00 - self.C
-        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), (Omega[1]-Omega[0])/(2*np.pi)))
-        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00)) * np.exp(1j*self.omega*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
+        diff = (Omega[1]-Omega[0])/(2*np.pi)
+        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), diff))
+        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00)) * np.exp(1j*self.omega_ref*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
+        self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)*diff
+
+    def convolute_power_profile(self, time, power_amplitude, phase, lambda_ref):
+        photon_energy_crystal = self.omega_ref*hbar/e
+        photon_energy_power_profile = c/lambda_ref*h/e
+        print('Convolution with crystal photon energy %.2f eV and power profile carrier photon energy %.2f eV' % (photon_energy_crystal, photon_energy_power_profile))
+        assert np.diff(time)[0] == np.diff(self.xi_0)[0]
+
+        input_field = np.sqrt(power_amplitude)*np.exp(1j*phase)
+        output_field = np.convolve(input_field, self.G_00)[:len(time)]
+        return output_field
 
 if __name__ == '__main__':
     ms.closeall()
     E_c = 9.83e3
+    #E_c = 9.6983884e3
 
     E_arr = np.linspace(-5, 5, int(1e4))
     E_mask = np.logical_and(E_arr > -0.2, E_arr < 0.4)

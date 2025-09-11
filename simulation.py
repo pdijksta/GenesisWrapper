@@ -22,7 +22,7 @@ class GenesisSimulation(ViewBase):
     comment_chars = ('!',)
     default_dict = {
             'npart': 8192.,
-            'sample': 2.,
+            'sample': 1.,
             }
     warn_geo = True
 
@@ -228,54 +228,12 @@ class GenesisSimulation(ViewBase):
             field_abs_sq = field_abs_sq / epsilon_0
         field_abs = np.sqrt(field_abs_sq)
         field_phase = self[key_phase][z_index,:]
-        if mask_time is not None:
-            field_abs = field_abs.copy()
-            field_phase = field_phase.copy()
-            field_abs[~mask_time] = 0
-            field_phase[~mask_time] = 0
 
-        if multiply_arr is not None:
-            field_abs = field_abs*multiply_arr
-
-        if multiply_length is not None:
-            assert multiply_length % 2 == 1
-            field_abs2 = np.zeros(len(field_abs)*multiply_length)
-            field_phase2 = field_abs2.copy()
-            index1 = (len(field_abs2)-len(field_abs))//2
-            index2 = (len(field_abs2)+len(field_abs))//2
-            field_abs2[index1:index2] = field_abs
-            field_phase2[index1:index2] = field_phase
-
-            field_abs = field_abs2
-            field_phase = field_phase2
-            t1 = time.min()
-            t2 = t1 + (time.max() - t1)*multiply_length
-            time = np.linspace(t1, t2, len(time)*multiply_length)
+        time, field_abs, field_phase = prepare_arrays(time, field_abs, field_phase, mask_time=mask_time, multiply_length=multiply_length, multiply_arr=multiply_arr)
         if type_ == 'spectrum':
-            return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
+            return get_frequency_spectrum2(time, field_abs, field_phase, self['Global/lambdaref'])
         elif type_ == 'field':
-            return self._get_frequency_domain_Efield(time, field_abs, field_phase, self['Global/lambdaref'])
-
-    @staticmethod
-    def _get_frequency_spectrum(time, field_abs, field_phase, lambda_ref):
-        xx, signal_fft_shift = GenesisSimulation._get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref)
-        return xx, np.abs(signal_fft_shift)**2
-
-    @staticmethod
-    def _get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref):
-        signal0 = field_abs*np.exp(1j*field_phase)
-        f0 = c/lambda_ref
-
-        signal_fft = fft.fft(signal0)
-        signal_fft_shift = fft.fftshift(signal_fft)
-
-        dt = abs(np.diff(time)[0]) # "Sample" already included
-        nq = 1/(2*dt)
-        xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
-
-        return xx, signal_fft_shift
-
-    #def get_freq_domain_field(
+            return get_frequency_domain_Efield(time, field_abs, field_phase, self['Global/lambdaref'])
 
     def z_index(self, z, warn=True):
         index = int(np.squeeze(np.argmin(np.abs(self.zplot-z))))
@@ -426,9 +384,9 @@ class MultiGenesisSimulation(GenesisSimulation):
 
         for outfile in self.outfiles:
             with h5py.File(outfile, 'r') as ff:
-                field_abs = np.array(ff['Field/intensity-farfield'])[z_index,:]
+                field_abs = np.sqrt(np.array(ff['Field/intensity-farfield'])[z_index,:])
                 field_phase = np.array(ff['Field/phase-farfield'])[z_index,:]
-            xx, yy = self._get_frequency_spectrum(self.time, field_abs, field_phase, self['Global/lambdaref'])
+            xx, yy = get_frequency_spectrum2(self.time, field_abs, field_phase, self['Global/lambdaref'])
             out_xx += xx
             out_yy += yy
 
@@ -482,4 +440,53 @@ class InputParser(dict):
         safety_factor = 1.5 # more accurate than factor of 2?
 
         return (memory_field+memory_beam)*safety_factor
+
+def prepare_arrays(time, field_abs, field_phase, mask_time=None, multiply_length=None, multiply_arr=None, multiply_mode='symmetric'):
+    if mask_time is not None:
+        field_abs = field_abs.copy()
+        field_phase = field_phase.copy()
+        field_abs[~mask_time] = 0
+        field_phase[~mask_time] = 0
+
+    if multiply_arr is not None:
+        field_abs = field_abs*multiply_arr
+
+    if multiply_length is not None:
+        time, [field_abs, field_phase] = add_zero_padding(time, [field_abs, field_phase], multiply_length, multiply_mode)
+    return time, field_abs, field_phase
+
+def get_frequency_spectrum2(time, field_abs, field_phase, lambda_ref):
+    xx, signal_fft_shift = get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref)
+    return xx, np.abs(signal_fft_shift)**2
+
+def get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref):
+    signal0 = field_abs*np.exp(1j*field_phase)
+    f0 = c/lambda_ref
+
+    signal_fft = fft.fft(signal0)
+    signal_fft_shift = fft.fftshift(signal_fft)
+
+    dt = abs(np.diff(time)[0]) # "Sample" already included
+    nq = 1/(2*dt)
+    xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
+
+    return xx, signal_fft_shift
+
+def add_zero_padding(time, arrs, multiply_length, mode='symmetric'):
+    assert multiply_length % 2 == 1
+    t1 = time.min()
+    t2 = t1 + (time.max() - t1)*multiply_length
+    time = np.linspace(t1, t2, len(time)*multiply_length)
+    outp_arrs = []
+    for arr in arrs:
+        outp_arr = np.zeros(len(arr)*multiply_length, dtype=arr.dtype)
+        if mode == 'symmetric':
+            index1 = (len(outp_arr)-len(arr))//2
+        elif mode == 'end':
+            index1 = 0
+        elif mode =='begin':
+            index1 = len(outp_arr) - len(arr)
+        outp_arr[index1:index1+len(arr)] = arr
+        outp_arrs.append(outp_arr)
+    return time, outp_arrs
 
