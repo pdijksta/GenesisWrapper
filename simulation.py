@@ -4,7 +4,7 @@ import glob
 import h5py
 import numpy as np
 import numpy.fft as fft
-from scipy.constants import c
+from scipy.constants import c, epsilon_0
 
 from . import averagePower
 from .view import ViewBase
@@ -221,14 +221,16 @@ class GenesisSimulation(ViewBase):
     def get_wavelength_spectrum(self, *args, **kwargs):
         raise ValueError('Use get_frequency_spectrum instead')
 
-    def get_frequency_spectrum(self, z_index=-1, multiply_length=None, mask_time=None, multiply_arr=None):
+    def get_frequency_spectrum(self, z_index=-1, multiply_length=None, mask_time=None, multiply_arr=None, type_='spectrum', key_amp='Field/intensity-farfield', key_phase='Field/phase-farfield'):
         time = self.time
-        if mask_time is None:
-            field_abs = self['Field/intensity-farfield'][z_index,:]
-            field_phase = self['Field/phase-farfield'][z_index,:]
-        else:
-            field_abs = self['Field/intensity-farfield'][z_index,:].copy()
-            field_phase = self['Field/phase-farfield'][z_index,:].copy()
+        field_abs_sq = self[key_amp][z_index,:]
+        if key_amp == 'Field/power':
+            field_abs_sq = field_abs_sq / epsilon_0
+        field_abs = np.sqrt(field_abs_sq)
+        field_phase = self[key_phase][z_index,:]
+        if mask_time is not None:
+            field_abs = field_abs.copy()
+            field_phase = field_phase.copy()
             field_abs[~mask_time] = 0
             field_phase[~mask_time] = 0
 
@@ -249,11 +251,19 @@ class GenesisSimulation(ViewBase):
             t1 = time.min()
             t2 = t1 + (time.max() - t1)*multiply_length
             time = np.linspace(t1, t2, len(time)*multiply_length)
-        return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
+        if type_ == 'spectrum':
+            return self._get_frequency_spectrum(time, field_abs, field_phase, self['Global/lambdaref'])
+        elif type_ == 'field':
+            return self._get_frequency_domain_Efield(time, field_abs, field_phase, self['Global/lambdaref'])
 
     @staticmethod
     def _get_frequency_spectrum(time, field_abs, field_phase, lambda_ref):
-        signal0 = np.sqrt(field_abs)*np.exp(1j*field_phase)
+        xx, signal_fft_shift = GenesisSimulation._get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref)
+        return xx, np.abs(signal_fft_shift)**2
+
+    @staticmethod
+    def _get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref):
+        signal0 = field_abs*np.exp(1j*field_phase)
         f0 = c/lambda_ref
 
         signal_fft = fft.fft(signal0)
@@ -263,7 +273,9 @@ class GenesisSimulation(ViewBase):
         nq = 1/(2*dt)
         xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
 
-        return xx, np.abs(signal_fft_shift)
+        return xx, signal_fft_shift
+
+    #def get_freq_domain_field(
 
     def z_index(self, z, warn=True):
         index = int(np.squeeze(np.argmin(np.abs(self.zplot-z))))
@@ -433,9 +445,6 @@ class MultiGenesisSimulation(GenesisSimulation):
 def get_simulation_from_glob(glob_, *args, **kwargs):
     files = glob.glob(glob_)
     return MultiGenesisSimulation(files, *args, **kwargs)
-
-
-
 
 
 # Obsolete, but used by ElegantWrapper
