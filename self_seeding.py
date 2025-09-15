@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import jv
 from scipy.constants import hbar, h, c, e
 
 sqrt = np.emath.sqrt
@@ -18,10 +19,16 @@ crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
             'w_s_H': 1.51e-5,
             'Delta_E_H': 60.6e-3,
             },
+        (2, 2, 0): {
+            'E_H': 4.91561e3,
+            'Lambda_bar_s_H': 1.98e-6,
+            'w_s_H': 3.04e-5,
+            'Delta_E_H': 106.0e-3,
+            },
         }
 
 chi_0_dict = {
-        ('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
+        #('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
         }
 
 chi_h_dict = {
@@ -109,18 +116,18 @@ def plane_angle(plane_coordinates_1,plane_coordinates_2):
     norm2=plane_coordinates_2[0:3]
     return np.arccos((norm1[0]*norm2[0]+norm1[1]*norm2[1]+norm1[2]*norm2[2])/np.sqrt(norm1[0]**2+norm1[1]**2+norm1[2]**2)/np.sqrt(norm2[0]**2+norm2[1]**2+norm2[2]**2))
 
-
-class Crystal:
+class SimpleCrystal:
     def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma'):
         self.material = material
         self.hkl = hkl
         self.cut = cut
+        self.photon_energy = photon_energy
         self.polarization = polarization
+
         self.material_properties = crystal_table[self.material][hkl].copy()
         self.material_properties['d_H'] = d_H = crystal_table[self.material]['d_H']
         self.material_properties['d'] = thickness
 
-        self.photon_energy = photon_energy
         self.lambda0 = h*c/(self.photon_energy*e)
         self.K0 = 2*np.pi/self.lambda0
         self.omega = self.K0*c
@@ -128,37 +135,55 @@ class Crystal:
         a1=[d_H, 0, 0]
         a2=[0, d_H, 0]
         a3=[0, 0, d_H]
-        self.d_H = crystal_plane_distance(a1,a2,a3,np.array(self.hkl))
-        self.H = 2*np.pi/self.d_H
-        self.theta = np.arcsin(self.H/(2*self.K0))
-        chi_h_key = (self.material,)+hkl+(self.photon_energy, self.polarization)
+        self.d_H = crystal_plane_distance(a1,a2,a3,np.array(self.hkl)) # distance along the plane used for diffraction
+        self.H = 2*np.pi/self.d_H # reciprocal lattice vector
+        self.theta = np.arcsin(self.H/(2*self.K0)) # Bragg's law
+        self.eta = plane_angle(cut, hkl)
+        self.psi_0 = self.theta + self.eta - np.pi/2 # Caption of Fig. 1 from Shvydko & Lindberg 2012
+        self.psi_H = np.pi/2 + self.theta - self.eta # Caption of Fig. 1 from Shvydko & Lindberg 2012
+        self.gamma_0 = np.cos(self.psi_0)
+        self.gamma_H = np.cos(self.psi_H) # Eq. 15 from Shvydko & Lindberg 2012
+
+        self.Tau_0 = (2*self.material_properties['Lambda_bar_s_H']**2) / (c*self.material_properties['d']/self.gamma_0) # Eq. 8 from Yang & Shvydko 2013
+        self.Tau_d = (2*self.material_properties['d']*np.sin(self.theta)**2)/(c*np.abs(self.gamma_H)) # Eq. 8 from Yang & Shvydko 2013
+
+        self.chi_0 = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
+        #self.chi_0 -= 0.001*1j*self.chi_0 # trial and error
+        hkl_key = (self.material,)+self.hkl+(self.photon_energy,)
+        if hkl_key in chi_0_dict:
+            print('chi_0 before', self.chi_0)
+            self.chi_0 = chi_0_dict[hkl_key]
+            print('chi_0 after', self.chi_0)
+        self.C = np.exp(1j*self.chi_0 * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
+
+    def calc_G_tilde_00_simple(self, xi_0):
+        mask = xi_0 != 0
+        arg = np.sqrt(xi_0[mask]/self.Tau_0 * (1+xi_0[mask]/self.Tau_d))
+        G_tilde_00 = np.empty_like(xi_0)
+        G_tilde_00[~mask] = -1/(4*self.Tau_0)
+        G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega)
+
+
+class Crystal(SimpleCrystal):
+    def __init__(self, *args, **kwargs):
+        SimpleCrystal.__init__(self, *args, **kwargs)
+
+        chi_h_key = (self.material,)+self.hkl+(self.photon_energy, self.polarization)
         if chi_h_key in chi_h_dict:
             print('lambda old', self.material_properties['Lambda_bar_s_H'])
-            P = 1 if polarization == 'sigma' else np.cos(2*self.theta)
+            P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
             self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(P)*np.sqrt(chi_h_dict[chi_h_key]**2))
             print('lambda new', self.material_properties['Lambda_bar_s_H'])
         elif self.polarization == 'pi':
             self.material_properties['Lambda_bar_s_H'] = self.material_properties['Lambda_bar_s_H']/np.cos(2*self.theta)
-        if cut != (1, 0, 0):
-            raise NotImplementedError
-        self.psi_0 = self.theta + 0 - np.pi/2 # Caption of Fig. 1 from Shvydko & Lindberg 2012
-        self.gamma_0 = np.cos(self.theta - np.pi/2)
-        self.gamma_H = np.cos(self.theta + np.pi/2) # Eq. 15 from Shvydko & Lindberg 2012
+
         self.b = self.gamma_0/self.gamma_H # Eq. 15 from Shvydko & Lindberg 2012
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
         self.w_H = self.material_properties['w_s_H'] * (self.b-1)/(2*self.b) # Eq. 44 from Shvydko & Lindberg 2012
         Tau_s_Lambda = 2*self.material_properties['Lambda_bar_s_H']/c # Eq. 43 from Shvydko & Lindberg 2012
         self.Tau_Lambda = Tau_s_Lambda*np.sqrt(np.abs(self.b))*np.sin(self.theta) # Eq. 42 from Shvydko & Lindberg 2012
-
-        self.chi_0 = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
-        self.chi_0 -= 0.001*1j*self.chi_0 # trial and error
-        hkl_key = (self.material,)+hkl+(photon_energy,)
-        if hkl_key in chi_0_dict:
-            print('chi_0 before', self.chi_0)
-            self.chi_0 = chi_0_dict[hkl_key]
-            print('chi_0 after', self.chi_0)
-        self.C = np.exp(1j*self.chi_0 * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
 
     def calc_y(self, Omega):
         """
@@ -171,7 +196,7 @@ class Crystal:
         """
         Eq. 38 from Shvydko & Lindberg 2012
         """
-        G = 1 # Assumption for symmetric crystals
+        G = 1 # Assumption for symmetric crystals (?). Anyway it cancels out for R_00.
         y = self.calc_y(Omega)
         Y_1 = -y + sqrt(y**2 + self.b/np.abs(self.b))
         Y_2 = -y - sqrt(y**2 + self.b/np.abs(self.b))
@@ -198,22 +223,12 @@ class Crystal:
         outp[~mask] = self.C*np.exp(1j*self.A/2*(-y2+np.sign(y2)*np.sqrt(y2**2-1)))
         return TransferFunction(Omega, outp, self.C, self.omega)
 
-class TransferFunction:
-    def __init__(self, Omega, R_00, C, omega_ref):
-        self.Omega = Omega
-        self.R_00 = R_00
+class TransferFunctionSimple:
+    def __init__(self, C, xi_0, G_tilde_00, omega_ref):
         self.C = C
+        self.G_tilde_00 = G_tilde_00
         self.omega_ref = omega_ref
-
-        self.R_tilde_00 = self.R_00 - self.C
-        self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
-        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), self.f_diff))
-        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00)) * np.exp(1j*self.omega_ref*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
-
-        mask_xi = self.xi_0 > 0
-        self.xi_0 = self.xi_0[mask_xi]
-        self.G_tilde_00 = self.G_tilde_00[mask_xi]
-        #self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)
+        self.xi_0 = xi_0
 
     def convolute_power_profile(self, time, power_amplitude, phase, lambda_ref, max_time=None):
         if max_time is None:
@@ -234,14 +249,46 @@ class TransferFunction:
         print('Convolution with crystal photon energy %.2f eV and power profile carrier photon energy %.2f eV' % (photon_energy_crystal, photon_energy_power_profile))
         diff_xi = np.diff(self.xi_0)[0]
         assert diff_time > 0
+        assert diff_xi > 0
         assert abs((diff_time - diff_xi)) / diff_xi < 1e-4
         assert len(time) <= len(self.xi_0)
 
         input_field = np.sqrt(power_amplitude)*np.exp(1j*phase)
-        output_field = self.C * (input_field + np.convolve(input_field, self.G_tilde_00)[:len(time)]) # Eq. 5 from Yang and Shvydko 2015
-        power_amplitude2 = np.abs(output_field)**2
-        phase2 = np.angle(output_field)
+        self.outp_field0 = self.C * input_field
+        self.outp_field1 = self.C * diff_xi * np.convolve(input_field, self.G_tilde_00)[:len(time)] # Eq. 5 from Yang and Shvydko 2015
+
+        self.outp_field = self.outp_field0 + self.outp_field1
+        power_amplitude2 = np.abs(self.outp_field)**2
+        phase2 = np.angle(self.outp_field)
         return time, power_amplitude2, phase2
+
+
+class TransferFunction(TransferFunctionSimple):
+    def __init__(self, Omega, R_00, C, omega_ref):
+        self.Omega = Omega
+        self.R_00 = R_00
+        self.C = C
+        self.omega_ref = omega_ref
+
+        self.R_tilde_00 = self.R_00 - self.C
+        self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
+        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), self.f_diff))
+        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00))*self.f_diff * np.exp(1j*self.omega_ref*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
+
+
+        #print(np.trapz(np.abs(self.G_tilde_00)**2, self.Omega/2/np.pi))
+        #print(np.trapz(np.abs(self.R_tilde_00)**2, self.xi_0))
+
+        mask_xi = self.xi_0 >= 0
+        self.xi_0 = self.xi_0[mask_xi]
+        self.G_tilde_00 = self.G_tilde_00[mask_xi]
+
+        #self.G_tilde_00_plus_phase = self.G_tilde_00 * np.exp(1j*self.omega_ref*self.xi_0)
+        #self.G_tilde_00_minus_phase = self.G_tilde_00 * np.exp(-1j*self.omega_ref*self.xi_0)
+        #factor = np.sqrt(1/np.abs(self.G_tilde_00[0])**2)
+        #self.G_tilde_00 *= factor
+        #print('Scale G_00 by factor %e' % factor)
+        #self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)
 
 if __name__ == '__main__':
     from PassiveWFMeasurement import myplotstyle as ms
@@ -268,7 +315,7 @@ if __name__ == '__main__':
         sp_tilde_g00 = subplot(sp_ctr, title='Thickness %.2f mm' % (thickness*1e3), xlabel=r'$\xi_0$ (fs)', ylabel=r'$|\tilde{G}_{00}(\xi_0)|^2$')
         sp_ctr += 1
 
-        crystal = Crystal('diamond', (1, 0, 0), (0, 0, 4), thickness, E_c, 'sigma')
+        crystal = Crystal('diamond', (0, 0, 1), (0, 0, 4), thickness, E_c, 'sigma')
         for transfer_function in [
                 crystal.calc_R_00(Omega_arr),
                 crystal.calc_R_00_v2(Omega_arr),
