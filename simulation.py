@@ -42,7 +42,7 @@ class GenesisSimulation(ViewBase):
 
         particle_dump_files = glob.glob(os.path.join(dirname, rootname)+'.*.par.h5')
         particle_dump_z = []
-        regex = re.compile('%s.(\d+).par.h5' % rootname)
+        regex = re.compile(r'%s.(\d+).par.h5' % rootname)
         for pd in particle_dump_files:
             index = min(int(regex.match(os.path.basename(pd)).group(1)), len(self['Lattice/z'])-1)
             particle_dump_z.append(self['Lattice/z'][index])
