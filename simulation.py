@@ -463,14 +463,14 @@ def get_frequency_domain_Efield(time, field_abs, field_phase, lambda_ref):
     signal0 = field_abs*np.exp(1j*field_phase)
     f0 = c/lambda_ref
 
-    signal_fft = fft.fft(signal0)/len(signal0)
+    signal_fft = fft.fft(signal0)
     signal_fft_shift = fft.fftshift(signal_fft)
 
     dt = abs(np.diff(time)[0]) # "Sample" already included
     nq = 1/(2*dt)
     xx = np.linspace(f0-nq, f0+nq, signal_fft.size)
 
-    return xx, signal_fft_shift
+    return xx, signal_fft_shift*dt
 
 def add_zero_padding(time, arrs, multiply_length, mode='symmetric'):
     assert multiply_length % 2 == 1

@@ -2,6 +2,8 @@ import numpy as np
 from scipy.special import jv
 from scipy.constants import hbar, h, c, e
 
+from PassiveWFMeasurement import h5_storage
+
 sqrt = np.emath.sqrt
 
 crystal_table = {}
@@ -120,11 +122,12 @@ class SimpleCrystal:
     def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma'):
         self.material = material
         self.hkl = hkl
+        self.hkl_key = tuple(np.abs(hkl))
         self.cut = cut
         self.photon_energy = photon_energy
         self.polarization = polarization
 
-        self.material_properties = crystal_table[self.material][hkl].copy()
+        self.material_properties = crystal_table[self.material][self.hkl_key].copy()
         self.material_properties['d_H'] = d_H = crystal_table[self.material]['d_H']
         self.material_properties['d'] = thickness
 
@@ -141,15 +144,16 @@ class SimpleCrystal:
         self.eta = plane_angle(cut, hkl)
         self.psi_0 = self.theta + self.eta - np.pi/2 # Caption of Fig. 1 from Shvydko & Lindberg 2012
         self.psi_H = np.pi/2 + self.theta - self.eta # Caption of Fig. 1 from Shvydko & Lindberg 2012
-        self.gamma_0 = np.cos(self.psi_0)
+        self.gamma_0 = np.cos(self.psi_0) # Eq. 15 from Shvydko & Lindberg 2012
         self.gamma_H = np.cos(self.psi_H) # Eq. 15 from Shvydko & Lindberg 2012
+        self.b = self.gamma_0/self.gamma_H # Eq. 15 from Shvydko & Lindberg 2012
 
         self.Tau_0 = (2*self.material_properties['Lambda_bar_s_H']**2) / (c*self.material_properties['d']/self.gamma_0) # Eq. 8 from Yang & Shvydko 2013
         self.Tau_d = (2*self.material_properties['d']*np.sin(self.theta)**2)/(c*np.abs(self.gamma_H)) # Eq. 8 from Yang & Shvydko 2013
 
         self.chi_0 = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
         #self.chi_0 -= 0.001*1j*self.chi_0 # trial and error
-        hkl_key = (self.material,)+self.hkl+(self.photon_energy,)
+        hkl_key = (self.material,)+self.hkl_key+(self.photon_energy,)
         if hkl_key in chi_0_dict:
             print('chi_0 before', self.chi_0)
             self.chi_0 = chi_0_dict[hkl_key]
@@ -157,6 +161,9 @@ class SimpleCrystal:
         self.C = np.exp(1j*self.chi_0 * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
 
     def calc_G_tilde_00_simple(self, xi_0):
+        """
+        Eq. 6 of Yang & ShvydKo (2013)
+        """
         mask = xi_0 != 0
         arg = np.sqrt(xi_0[mask]/self.Tau_0 * (1+xi_0[mask]/self.Tau_d))
         G_tilde_00 = np.empty_like(xi_0)
@@ -164,12 +171,24 @@ class SimpleCrystal:
         G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
         return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega)
 
+    def calc_G_tilde_00_simple2(self, xi_0):
+        """
+        Eq. 9 of Yang & ShvydKo (2013)
+        """
+        mask = xi_0 != 0
+        arg = np.sqrt(xi_0[mask]/self.Tau_0)
+        G_tilde_00 = np.empty_like(xi_0)
+        G_tilde_00[~mask] = 1/(4*self.Tau_0) * np.sign(self.b)
+        G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega)
+
+
 
 class Crystal(SimpleCrystal):
     def __init__(self, *args, **kwargs):
         SimpleCrystal.__init__(self, *args, **kwargs)
 
-        chi_h_key = (self.material,)+self.hkl+(self.photon_energy, self.polarization)
+        chi_h_key = (self.material,)+self.hkl_key+(self.photon_energy, self.polarization)
         if chi_h_key in chi_h_dict:
             print('lambda old', self.material_properties['Lambda_bar_s_H'])
             P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
@@ -178,7 +197,6 @@ class Crystal(SimpleCrystal):
         elif self.polarization == 'pi':
             self.material_properties['Lambda_bar_s_H'] = self.material_properties['Lambda_bar_s_H']/np.cos(2*self.theta)
 
-        self.b = self.gamma_0/self.gamma_H # Eq. 15 from Shvydko & Lindberg 2012
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
         self.w_H = self.material_properties['w_s_H'] * (self.b-1)/(2*self.b) # Eq. 44 from Shvydko & Lindberg 2012
@@ -223,6 +241,7 @@ class Crystal(SimpleCrystal):
         outp[~mask] = self.C*np.exp(1j*self.A/2*(-y2+np.sign(y2)*np.sqrt(y2**2-1)))
         return TransferFunction(Omega, outp, self.C, self.omega)
 
+
 class TransferFunctionSimple:
     def __init__(self, C, xi_0, G_tilde_00, omega_ref):
         self.C = C
@@ -260,7 +279,27 @@ class TransferFunctionSimple:
         self.outp_field = self.outp_field0 + self.outp_field1
         power_amplitude2 = np.abs(self.outp_field)**2
         phase2 = np.angle(self.outp_field)
-        return time, power_amplitude2, phase2
+        return SeedPower(time, power_amplitude2, phase2)
+
+
+class SeedPower:
+    def __init__(self, time, power_amplitude, phase):
+        self.time = time
+        self.power_amplitude = power_amplitude
+        self.phase = phase
+
+    def writeH5(self, filename, t_min, t_max, s_0=0):
+        mask = np.logical_and(self.time >= t_min, self.time <= t_max)
+        s = -c*self.time[mask][::-1]
+        s = s - s[0] + s_0
+        assert s[1] > s[0]
+        outp_dict = {
+                's': s,
+                'power': self.power_amplitude[mask][::-1],
+                'phase': self.phase[mask][::-1],
+                }
+        h5_storage.saveH5Recursive(filename, outp_dict)
+        print('Wrote %s with keys s, power, phase' % filename)
 
 
 class TransferFunction(TransferFunctionSimple):
