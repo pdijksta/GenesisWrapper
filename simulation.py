@@ -46,8 +46,12 @@ class GenesisSimulation(ViewBase):
         for pd in particle_dump_files:
             index = min(int(regex.match(os.path.basename(pd)).group(1)), len(self['Lattice/z'])-1)
             particle_dump_z.append(self['Lattice/z'][index])
-        particle_dump_z, self.particle_dump_files = zip(*sorted(zip(particle_dump_z, particle_dump_files)))
-        self.particle_dump_z = np.array(particle_dump_z)
+        if particle_dump_z:
+            particle_dump_z, self.particle_dump_files = zip(*sorted(zip(particle_dump_z, particle_dump_files)))
+            self.particle_dump_z = np.array(particle_dump_z)
+        else:
+            self.particle_dump_z = []
+            self.particle_dump_files = []
 
     def _init(self):
         self._dict = {}
