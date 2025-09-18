@@ -63,10 +63,10 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     try:
         sp_inv.plot(time*1e15, sim.getSliceSPEmittance('x', ref=ref)[mask_current], label='x')
         sp_inv.plot(time*1e15, sim.getSliceSPEmittance('y', ref=ref)[mask_current], label='y')
+        sp_inv.legend()
     except:
         pass
     #sp.axvline(time[len(time)//2], color='black', ls='--')
-    sp_inv.legend()
 
     sp_mm = subplot(sp_ctr, title='Mismatch w.r.t. projected', xlabel='t (fs)', ylabel='M', sharex=sp_inv)
     sp_ctr += 1

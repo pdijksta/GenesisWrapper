@@ -329,6 +329,15 @@ class TransferFunction(TransferFunctionSimple):
         #print('Scale G_00 by factor %e' % factor)
         #self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)
 
+
+def generate_seed(sim, crystal, z_pos, max_time, *write_args):
+    z_index = sim.z_index(z_pos)
+    xi_0 = np.arange(0, max_time+5e-15, abs(np.diff(sim.time)[0]))
+    tf_simple = crystal.calc_G_tilde_00_simple(xi_0)
+    seed_power = tf_simple.convolute_power_profile(sim.time[::-1], sim['Field/power'][z_index][::-1], sim['Field/phase-nearfield'][z_index][::-1], sim['Global/lambdaref'], max_time=max_time)
+    seed_power.writeH5(*write_args)
+
+
 if __name__ == '__main__':
     from PassiveWFMeasurement import myplotstyle as ms
     ms.closeall()
