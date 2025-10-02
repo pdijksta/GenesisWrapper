@@ -133,11 +133,11 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
     sp = subplot(sp_ctr, title='Final Pulse at %i m' % round(z_final_pulse), xlabel='t (fs)', ylabel='Power (W)', sciy=True, sharex=sp_inv)
     sp_ctr += 1
 
-    yy_final_pulse = sim['Field/power'][index_final_pulse,mask_current]
-    sp.plot(time*1e15, yy_final_pulse)
+    yy_final_pulse = sim['Field/power'][index_final_pulse]
+    sp.plot(sim.time*1e15, yy_final_pulse)
     gf = None
     if fit_pulse_length == 'gauss':
-        gf = GaussFit(time, yy_final_pulse)
+        gf = GaussFit(sim.time, yy_final_pulse)
         sp.plot(gf.xx*1e15, gf.yy, label='$\sigma$=%.3e' % gf.sigma)
         sp.legend()
     elif fit_pulse_length is None:

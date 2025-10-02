@@ -133,7 +133,7 @@ class SimpleCrystal:
 
         self.lambda0 = h*c/(self.photon_energy*e)
         self.K0 = 2*np.pi/self.lambda0
-        self.omega = self.K0*c
+        self.omega_0 = self.K0*c
 
         a1=[d_H, 0, 0]
         a2=[0, d_H, 0]
@@ -169,7 +169,7 @@ class SimpleCrystal:
         G_tilde_00 = np.empty_like(xi_0)
         G_tilde_00[~mask] = -1/(4*self.Tau_0)
         G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
-        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega)
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
 
     def calc_G_tilde_00_simple2(self, xi_0):
         """
@@ -180,7 +180,7 @@ class SimpleCrystal:
         G_tilde_00 = np.empty_like(xi_0)
         G_tilde_00[~mask] = 1/(4*self.Tau_0) * np.sign(self.b)
         G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
-        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega)
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
 
 
 
@@ -207,7 +207,7 @@ class Crystal(SimpleCrystal):
         """
         Eq. 41 from Shvydko & Lindberg 2012
         """
-        y = (Omega - self.w_H*self.omega) * self.Tau_Lambda / (-np.sign(self.b))
+        y = (Omega - self.w_H*(self.omega_0-Omega)) * self.Tau_Lambda / (-np.sign(self.b))
         return y
 
     def calc_R_00(self, Omega):
@@ -224,7 +224,7 @@ class Crystal(SimpleCrystal):
         kappa_2d = self.chi_0 * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
 
         R_00 = np.exp(1j*kappa_1d) * (R_2 - R_1) / (R_2 - R_1*np.exp(1j*(kappa_1d - kappa_2d)))
-        return TransferFunction(Omega, R_00, self.C, self.omega)
+        return TransferFunction(Omega, R_00, self.C, self.omega_0)
 
 
     def calc_R_00_v2(self, Omega):
@@ -239,7 +239,7 @@ class Crystal(SimpleCrystal):
         y2 = y[~mask]
         outp[mask] = self.C*np.exp(-self.A/2*(1j*y1+np.sqrt(1-y1**2)))
         outp[~mask] = self.C*np.exp(1j*self.A/2*(-y2+np.sign(y2)*np.sqrt(y2**2-1)))
-        return TransferFunction(Omega, outp, self.C, self.omega)
+        return TransferFunction(Omega, outp, self.C, self.omega_0)
 
 
 class TransferFunctionSimple:
