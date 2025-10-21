@@ -137,3 +137,13 @@ def sase1_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
 
 sase2_lat = sase1_lat
 
+def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=2.5, k1_defoc=-2.5, n_fodo=6):
+    ld1 = 0.355
+    ld2 = 0.34
+    lq = 0.08
+    lambdau = 0.015
+    nwig = 265
+    lat = gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False, lin_taper, quad_taper, und_ctr_quad)
+    content = lat.write_lat(filename)
+    return lat, content
+
