@@ -89,7 +89,7 @@ class lat_file:
             f.write(content)
         return content
 
-def gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad):
+def gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad):
     lat = lat_file(lin_taper, quad_taper, und_ctr_quad)
     d1 = lat.add_drift(ld1)
     d2 = lat.add_drift(ld2)
@@ -105,6 +105,27 @@ def gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_f
     lat.add_final_line()
     return lat
 
+def gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_arr, n_fodo, extra_un):
+    if not hasattr(k_arr, '__len__'):
+        n_und = int(n_fodo*2 + 1*extra_un)
+        k_arr = [k_arr]*n_und
+    lat = lat_file(0, 0, 0)
+    d1 = lat.add_drift(ld1)
+    d2 = lat.add_drift(ld2)
+    q1 = lat.add_quad(lq, k1_foc)
+    q2 = lat.add_quad(lq, k1_defoc)
+    for fodo_ctr in range(n_fodo):
+        un1 = lat.add_undulator(lambdau, nwig, k_arr[2*fodo_ctr])
+        un2 = lat.add_undulator(lambdau, nwig, k_arr[2*fodo_ctr+1])
+        lat.add_line('FODO%i' % (fodo_ctr+1), [un1, d1, q1, d2, un2, d1, q2, d2])
+    if extra_un:
+        un = lat.add_undulator(lambdau, nwig, k_arr[-1])
+        lat.add_elem(un)
+    lat.add_final_line()
+    return lat
+
+
+
 def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.554, k1_defoc=-0.554, n_fodo=None):
     ld = 0.47465
     lq = 0.1137
@@ -116,7 +137,7 @@ def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
     else:
         n_fodo = n_fodo
         extra_un = False
-    lat = gen_fodo_beamline(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
+    lat = gen_fodo_beamline_tapered(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
 
@@ -131,7 +152,7 @@ def sase1_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
     else:
         n_fodo = n_fodo
         extra_un = False
-    lat = gen_fodo_beamline(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
+    lat = gen_fodo_beamline_tapered(ld, ld, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
 
@@ -143,7 +164,10 @@ def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_f
     lq = 0.08
     lambdau = 0.015
     nwig = 265
-    lat = gen_fodo_beamline(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False, lin_taper, quad_taper, und_ctr_quad)
+    if hasattr(k_init, '__len__'):
+        lat = gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False)
+    else:
+        lat = gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
 

@@ -303,7 +303,7 @@ class SeedPower:
 
 
 class TransferFunction(TransferFunctionSimple):
-    def __init__(self, Omega, R_00, C, omega_ref):
+    def __init__(self, Omega, R_00, C, omega_ref, only_pos_time=True):
         self.Omega = Omega
         self.R_00 = R_00
         self.C = C
@@ -318,9 +318,10 @@ class TransferFunction(TransferFunctionSimple):
         #print(np.trapz(np.abs(self.G_tilde_00)**2, self.Omega/2/np.pi))
         #print(np.trapz(np.abs(self.R_tilde_00)**2, self.xi_0))
 
-        mask_xi = self.xi_0 >= 0
-        self.xi_0 = self.xi_0[mask_xi]
-        self.G_tilde_00 = self.G_tilde_00[mask_xi]
+        if only_pos_time:
+            mask_xi = self.xi_0 >= 0
+            self.xi_0 = self.xi_0[mask_xi]
+            self.G_tilde_00 = self.G_tilde_00[mask_xi]
 
         #self.G_tilde_00_plus_phase = self.G_tilde_00 * np.exp(1j*self.omega_ref*self.xi_0)
         #self.G_tilde_00_minus_phase = self.G_tilde_00 * np.exp(-1j*self.omega_ref*self.xi_0)
@@ -356,6 +357,8 @@ if __name__ == '__main__':
     for thickness in [0.2e-3, 0.1e-3, 0.05e-3]:
         sp_r00 = subplot(sp_ctr, title='Thickness %.2f mm' % (thickness*1e3), xlabel='$E$-$E_c$ (eV)', ylabel='$|R_{00}(E)|^2$')
         sp_ctr += 1
+        sp_r00_re_im = sp_r00.twinx()
+        sp_r00_re_im.set_ylabel('Components')
 
         sp_tilde_r00 = subplot(sp_ctr, title='Thickness %.2f mm' % (thickness*1e3), xlabel='$E$-$E_c$ (eV)', ylabel=r'$|\tilde{R}_{00}(E)|^2$')
         sp_ctr += 1
@@ -364,16 +367,20 @@ if __name__ == '__main__':
         sp_ctr += 1
 
         crystal = Crystal('diamond', (0, 0, 1), (0, 0, 4), thickness, E_c, 'sigma')
-        for transfer_function in [
+        for ctr, transfer_function in enumerate([
                 crystal.calc_R_00(Omega_arr),
                 crystal.calc_R_00_v2(Omega_arr),
-                ]:
+                ]):
             R_tilde_00 = transfer_function.R_tilde_00
             R_00 = transfer_function.R_00
             sp_r00.plot(E_arr[E_mask], np.abs(R_00[E_mask])**2)
+            if ctr == 0:
+                sp_r00_re_im.plot(E_arr[E_mask], np.real(R_00[E_mask]), color='tab:red')
+                sp_r00_re_im.plot(E_arr[E_mask], np.imag(R_00[E_mask]), color='tab:green')
 
             sp_tilde_r00.plot(E_arr[E_mask], np.abs(R_tilde_00[E_mask])**2)
             sp_tilde_g00.semilogy(transfer_function.xi_0*1e15, np.abs(transfer_function.G_tilde_00)**2)
+            print(transfer_function.C)
         sp_tilde_g00.set_xlim(0, 300)
 
     ms.show()

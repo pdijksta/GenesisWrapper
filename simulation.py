@@ -172,6 +172,12 @@ class GenesisSimulation(ViewBase):
     def get_total_pulse_energy(self, z_index=-1):
         return -averagePower.get_total_pulse_energy(self.time, self['Field/power'][z_index,:])
 
+    def get_all_pulse_energy(self):
+        outp = np.zeros_like(self.zplot)
+        for z_index in range(len(outp)):
+            outp[z_index] = -averagePower.get_total_pulse_energy(self.time, self['Field/power'][z_index,:])
+        return outp
+
     def get_m1(self, dimension, mu, mup):
         assert dimension in ('x', 'y')
 
