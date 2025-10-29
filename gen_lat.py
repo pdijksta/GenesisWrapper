@@ -165,9 +165,11 @@ def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_f
     lambdau = 0.015
     nwig = 265
     if hasattr(k_init, '__len__'):
-        lat = gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False)
+        n_fodo = len(k_init) // 2
+        add_undulator = bool(len(k_init) - int(2*n_fodo))
+        lat = gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, add_undulator)
     else:
-        lat = gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, False, lin_taper, quad_taper, und_ctr_quad)
+        lat = gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, True, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
 
