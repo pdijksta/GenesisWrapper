@@ -158,17 +158,22 @@ def sase1_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_fo
 
 sase2_lat = sase1_lat
 
-def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=2.5, k1_defoc=-2.5, n_fodo=6):
+def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=2.5, k1_defoc=-2.5, n_fodo=None, n_und=13):
     ld1 = 0.355
     ld2 = 0.34
     lq = 0.08
     lambdau = 0.015
     nwig = 265
+    if n_fodo is not None:
+        print('n_fodo is depreciated')
+        n_und = n_fodo*2
     if hasattr(k_init, '__len__'):
         n_fodo = len(k_init) // 2
         add_undulator = bool(len(k_init) - int(2*n_fodo))
         lat = gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, add_undulator)
     else:
+        n_fodo = n_und // 2
+        add_undulator = bool(n_und - int(2*n_fodo))
         lat = gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, True, lin_taper, quad_taper, und_ctr_quad)
     content = lat.write_lat(filename)
     return lat, content
