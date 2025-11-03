@@ -312,7 +312,7 @@ class TransferFunction(TransferFunctionSimple):
         self.R_tilde_00 = self.R_00 - self.C
         self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
         self.xi_0 = np.fft.ifftshift(np.fft.fftfreq(len(Omega), self.f_diff))
-        self.G_tilde_00 = np.fft.ifftshift(np.fft.ifft(np.fft.ifftshift(self.R_tilde_00))*self.f_diff * np.exp(1j*self.omega_ref*self.xi_0))[::-1] # Eq. 47 from Shvydko & Lindberg 2012
+        self.G_tilde_00 = np.fft.ifftshift(np.fft.ifft(np.fft.ifftshift(self.R_tilde_00))*self.f_diff)[::-1] # Eq. 47 from Shvydko & Lindberg 2012
 
         #print(np.trapz(np.abs(self.G_tilde_00)**2, self.Omega/2/np.pi))
         #print(np.trapz(np.abs(self.R_tilde_00)**2, self.xi_0))
