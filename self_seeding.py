@@ -311,9 +311,8 @@ class TransferFunction(TransferFunctionSimple):
 
         self.R_tilde_00 = self.R_00 - self.C
         self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
-        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), self.f_diff))
-        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(self.R_tilde_00))*self.f_diff * np.exp(1j*self.omega_ref*self.xi_0) # Eq. 47 from Shvydko & Lindberg 2012
-
+        self.xi_0 = np.fft.ifftshift(np.fft.fftfreq(len(Omega), self.f_diff))
+        self.G_tilde_00 = np.fft.ifftshift(np.fft.ifft(np.fft.ifftshift(self.R_tilde_00))*self.f_diff * np.exp(1j*self.omega_ref*self.xi_0))[::-1] # Eq. 47 from Shvydko & Lindberg 2012
 
         #print(np.trapz(np.abs(self.G_tilde_00)**2, self.Omega/2/np.pi))
         #print(np.trapz(np.abs(self.R_tilde_00)**2, self.xi_0))
@@ -367,21 +366,23 @@ if __name__ == '__main__':
         sp_ctr += 1
 
         crystal = Crystal('diamond', (0, 0, 1), (0, 0, 4), thickness, E_c, 'sigma')
-        for ctr, transfer_function in enumerate([
-                crystal.calc_R_00(Omega_arr),
-                crystal.calc_R_00_v2(Omega_arr),
+        for ctr, (transfer_function, label) in enumerate([
+                (crystal.calc_R_00(Omega_arr), 'v1'),
+                (crystal.calc_R_00_v2(Omega_arr), 'v2'),
                 ]):
             R_tilde_00 = transfer_function.R_tilde_00
             R_00 = transfer_function.R_00
             sp_r00.plot(E_arr[E_mask], np.abs(R_00[E_mask])**2)
+
             if ctr == 0:
                 sp_r00_re_im.plot(E_arr[E_mask], np.real(R_00[E_mask]), color='tab:red')
                 sp_r00_re_im.plot(E_arr[E_mask], np.imag(R_00[E_mask]), color='tab:green')
 
             sp_tilde_r00.plot(E_arr[E_mask], np.abs(R_tilde_00[E_mask])**2)
-            sp_tilde_g00.semilogy(transfer_function.xi_0*1e15, np.abs(transfer_function.G_tilde_00)**2)
+            sp_tilde_g00.semilogy(transfer_function.xi_0*1e15, np.abs(transfer_function.G_tilde_00)**2, label=label)
             print(transfer_function.C)
         sp_tilde_g00.set_xlim(0, 300)
+        sp_tilde_g00.legend()
 
     ms.show()
 
