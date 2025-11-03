@@ -311,8 +311,8 @@ class TransferFunction(TransferFunctionSimple):
 
         self.R_tilde_00 = self.R_00 - self.C
         self.f_diff = (Omega[1]-Omega[0])/(2*np.pi)
-        self.xi_0 = np.fft.ifftshift(np.fft.fftfreq(len(Omega), self.f_diff))
-        self.G_tilde_00 = np.fft.ifftshift(np.fft.ifft(np.fft.ifftshift(self.R_tilde_00))*self.f_diff)[::-1] # Eq. 47 from Shvydko & Lindberg 2012
+        self.xi_0 = np.fft.fftshift(np.fft.fftfreq(len(Omega), self.f_diff))
+        self.G_tilde_00 = np.fft.fftshift(np.fft.fft(np.fft.fftshift(self.R_tilde_00))*self.f_diff) # Eq. 47 from Shvydko & Lindberg 2012
 
         #print(np.trapz(np.abs(self.G_tilde_00)**2, self.Omega/2/np.pi))
         #print(np.trapz(np.abs(self.R_tilde_00)**2, self.xi_0))
@@ -380,7 +380,13 @@ if __name__ == '__main__':
 
             sp_tilde_r00.plot(E_arr[E_mask], np.abs(R_tilde_00[E_mask])**2)
             sp_tilde_g00.semilogy(transfer_function.xi_0*1e15, np.abs(transfer_function.G_tilde_00)**2, label=label)
-            print(transfer_function.C)
+            #print(transfer_function.C)
+
+        tf_simple = crystal.calc_G_tilde_00_simple(transfer_function.xi_0)
+        sp_tilde_g00.semilogy(tf_simple.xi_0*1e15, np.abs(tf_simple.G_tilde_00)**2, label='simple')
+        tf_simple2 = crystal.calc_G_tilde_00_simple2(transfer_function.xi_0)
+        sp_tilde_g00.semilogy(tf_simple2.xi_0*1e15, np.abs(tf_simple2.G_tilde_00)**2, label='simple2')
+
         sp_tilde_g00.set_xlim(0, 300)
         sp_tilde_g00.legend()
 
