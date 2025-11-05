@@ -1,4 +1,4 @@
-#import numpy as np
+import numpy as np
 from scipy.constants import hbar, c, e
 
 from ocelot.optics.elements import Crystal
@@ -25,7 +25,7 @@ class OcelotCrystal:
         self.ocelot_crystal.cut = cut
         self.ocelot_crystal.ref_idx = hkl
         self.filt = get_crystal_filter(self.ocelot_crystal, photon_energy)
-        self.tr = self.filt.tr[::-1]
+        self.tr = np.conjugate(self.filt.tr)
         self.Omega_ref = self.photon_energy*e/hbar
         self.Omega = self.filt.k*c-self.Omega_ref
 

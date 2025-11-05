@@ -31,11 +31,16 @@ crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
         }
 
 chi_0_dict = {
-        #('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
+        # xr0, xi0 from https://x-server.gmca.aps.anl.gov/
+        ('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
+        ('diamond', 0, 0, 4, 9.70e3): -0.15532E-4+ 1j*0.13981e-7,
         }
 
 chi_h_dict = {
-        #('diamond', 0, 0, 4, 9.83e3, 'sigma'): -0.37824e-5 + 1j*0.12060e-7,
+        # xrh, xih from https://x-server.gmca.aps.anl.gov/
+        # Somehow need to flip sign of real part
+        ('diamond', 0, 0, 4, 9.83e3, 'sigma'): -0.37824e-5 + 1j*0.12060e-7,
+        ('diamond', 0, 0, 4, 9.70e3, 'sigma'): -0.38851e-5 + 1j*0.12768e-7,
         }
 
 
@@ -91,9 +96,7 @@ def build_crystal_plane(a1,a2,a3,hkl_vec):
     d=-d
 
     plane_coordinate=[vec_norm[0], vec_norm[1], vec_norm[2], d]
-
     return plane_coordinate
-
 
 def crystal_plane_distance(a1,a2,a3,hkl_vec):
     hkl_vec=np.array(hkl_vec)
@@ -123,10 +126,12 @@ class SimpleCrystal:
     def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma'):
         self.material = material
         self.hkl = hkl
-        self.hkl_key = tuple(np.abs(hkl))
+        self.hkl_key = tuple(hkl)
         self.cut = cut
         self.photon_energy = photon_energy
         self.polarization = polarization
+        if polarization != 'sigma':
+            raise ValueError('Pi polarization not implemented!')
 
         self.material_properties = crystal_table[self.material][self.hkl_key].copy()
         self.material_properties['d_H'] = d_H = crystal_table[self.material]['d_H']
@@ -155,10 +160,14 @@ class SimpleCrystal:
         self.chi_0 = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
         #self.chi_0 -= 0.001*1j*self.chi_0 # trial and error
         hkl_key = (self.material,)+self.hkl_key+(self.photon_energy,)
-        if hkl_key in chi_0_dict:
-            print('chi_0 before', self.chi_0)
-            self.chi_0 = chi_0_dict[hkl_key]
-            print('chi_0 after', self.chi_0)
+        for hkl_key, data in chi_0_dict.items():
+            material, h_, k_, l_, photon_energy = hkl_key
+            if material == self.material and (h_, k_, l_) == self.hkl_key and abs(photon_energy - self.photon_energy) < 10:
+                print('chi_0 before', self.chi_0)
+                self.chi_0 = data
+                print('chi_0 after', self.chi_0)
+            else:
+                print('Skipped %s' % str(hkl_key))
         self.C = np.exp(1j*self.chi_0 * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
 
     def calc_G_tilde_00_simple(self, xi_0):
@@ -189,14 +198,17 @@ class Crystal(SimpleCrystal):
     def __init__(self, *args, **kwargs):
         SimpleCrystal.__init__(self, *args, **kwargs)
 
-        chi_h_key = (self.material,)+self.hkl_key+(self.photon_energy, self.polarization)
-        if chi_h_key in chi_h_dict:
-            print('lambda old', self.material_properties['Lambda_bar_s_H'])
-            P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
-            self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(P)*np.sqrt(chi_h_dict[chi_h_key]**2))
-            print('lambda new', self.material_properties['Lambda_bar_s_H'])
-        elif self.polarization == 'pi':
-            self.material_properties['Lambda_bar_s_H'] = self.material_properties['Lambda_bar_s_H']/np.cos(2*self.theta)
+        for key, data in chi_h_dict.items():
+            (material, h_, k_, l_, photon_energy, polarization) = key
+            if material == self.material and (h_, k_, l_) == self.hkl_key and self.polarization == polarization and photon_energy - (self.photon_energy) < 10:
+                print('lambda old', self.material_properties['Lambda_bar_s_H'])
+                P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
+                self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(P)*np.sqrt(data**2))
+                print('lambda new', self.material_properties['Lambda_bar_s_H'])
+            #else:
+            #    print('Skip %s' % str(key))
+            #elif self.polarization == 'pi':
+            #    self.material_properties['Lambda_bar_s_H'] = self.material_properties['Lambda_bar_s_H']/np.cos(2*self.theta)
 
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
@@ -314,15 +326,19 @@ class SeedPower:
         self.power_amplitude = power_amplitude
         self.phase = phase
 
-    def shift_time(self, input_time, input_power):
+    def shift_time(self, input_time, input_power, clip=True):
         prof0 = beam_profile.AnyProfile(input_time, input_power)
-        prof0.cutoff(5e-2)
+        prof0.cutoff(1e-2)
         prof = beam_profile.AnyProfile(self.time, self.power_amplitude)
-        prof.cutoff(5e-2)
+        prof.cutoff(1e-2)
         time_shift = prof0.mean() - prof.mean()
         self.time += time_shift
+        if clip:
+            mask = self.time > prof0._xx[prof0._yy != 0].min()
+            self.time = self.time[mask]
+            self.power_amplitude = self.power_amplitude[mask]
+            self.phase = self.phase[mask]
         return time_shift
-
 
     def writeH5(self, filename, t_min, t_max, s_0=0):
         mask = np.logical_and(self.time >= t_min, self.time <= t_max)
