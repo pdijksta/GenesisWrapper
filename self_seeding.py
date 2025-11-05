@@ -1,8 +1,9 @@
 import numpy as np
 from scipy.special import jv
-from scipy.constants import hbar, h, c, e
+from scipy.constants import hbar, h, c, e, epsilon_0
 
 from PassiveWFMeasurement import h5_storage
+from PassiveWFMeasurement import beam_profile
 
 sqrt = np.emath.sqrt
 
@@ -241,6 +242,31 @@ class Crystal(SimpleCrystal):
         outp[~mask] = self.C*np.exp(1j*self.A/2*(-y2+np.sign(y2)*np.sqrt(y2**2-1)))
         return TransferFunction(Omega, outp, self.C, self.omega_0)
 
+class Multiplication:
+    def __init__(self, Omega, R_00, C, omega_ref):
+        self.Omega = Omega
+        self.R_00 = R_00
+        self.C = self.R_00[-1] if C is None else C
+        self.omega_ref = omega_ref
+
+    def multiplication(self, photon_energy_sim, spectrum_sim, photon_energy_ref_sim):
+        outp = {
+                'photon_energy_sim': photon_energy_sim,
+                'spectrum_sim': spectrum_sim,
+                'photon_energy_sim_ref': photon_energy_ref_sim,
+                }
+        outp['mult_photon_energy'] = mult_photon_energy = photon_energy_sim - self.omega_ref*hbar/e
+        outp['mult_spectrum'] = mult_spectrum = np.interp(mult_photon_energy, self.Omega*hbar/e, self.R_00)
+        outp['spectrum'] = spectrum_sim*mult_spectrum
+        outp['spectrum_wake'] = spectrum_sim*(mult_spectrum-self.C)
+        f_diff = (photon_energy_sim[1]-photon_energy_sim[0])*e/h
+        outp['time'] = np.fft.fftshift(np.fft.fftfreq(len(photon_energy_sim), f_diff))
+        outp['field'] = field = np.fft.fft(np.fft.fftshift(outp['spectrum']))*f_diff
+        outp['power'] = np.abs(field)**2*epsilon_0
+        outp['phase'] = np.angle(field)
+        outp['seed_power'] = SeedPower(outp['time'], outp['power'], outp['phase'])
+        return outp
+
 
 class TransferFunctionSimple:
     def __init__(self, C, xi_0, G_tilde_00, omega_ref):
@@ -287,6 +313,16 @@ class SeedPower:
         self.time = time
         self.power_amplitude = power_amplitude
         self.phase = phase
+
+    def shift_time(self, input_time, input_power):
+        prof0 = beam_profile.AnyProfile(input_time, input_power)
+        prof0.cutoff(5e-2)
+        prof = beam_profile.AnyProfile(self.time, self.power_amplitude)
+        prof.cutoff(5e-2)
+        time_shift = prof0.mean() - prof.mean()
+        self.time += time_shift
+        return time_shift
+
 
     def writeH5(self, filename, t_min, t_max, s_0=0):
         mask = np.logical_and(self.time >= t_min, self.time <= t_max)

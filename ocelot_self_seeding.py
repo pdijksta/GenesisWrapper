@@ -25,11 +25,13 @@ class OcelotCrystal:
         self.ocelot_crystal.cut = cut
         self.ocelot_crystal.ref_idx = hkl
         self.filt = get_crystal_filter(self.ocelot_crystal, photon_energy)
+        self.tr = self.filt.tr[::-1]
+        self.Omega_ref = self.photon_energy*e/hbar
+        self.Omega = self.filt.k*c-self.Omega_ref
 
     def get_transfer_function(self):
-        omega = self.filt.k*c
-        omega_ref = self.photon_energy*e/hbar
-        tr = self.filt.tr
-        tf = self_seeding.TransferFunction(omega-omega_ref, tr[::-1], tr[0], omega_ref)
-        return tf
+        return self_seeding.TransferFunction(self.Omega, self.tr, self.tr[-1], self.Omega_ref)
+
+    def get_mult(self):
+        return self_seeding.Multiplication(self.Omega, self.tr, self.tr[-1], self.Omega_ref)
 
