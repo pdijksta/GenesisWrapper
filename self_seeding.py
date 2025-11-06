@@ -17,22 +17,22 @@ crystal_table = {}
 crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
         'd_H': 3.5668e-10, # https://x-server.gmca.aps.anl.gov
         (3, 3, 3): {
-            'E_H': 9.03035e3,
+            #'E_H': 9.03035e3,
             'Lambda_bar_s_H': 7.83e-6,
             'w_s_H': 0.89e-5,
-            'Delta_E_H': 27.3e-3,
+            #'Delta_E_H': 27.3e-3,
             },
         (0, 0, 4): {
-            'E_H': 6.95161e3,
+            #'E_H': 6.95161e3,
             'Lambda_bar_s_H': 3.63e-6,
             'w_s_H': 1.51e-5,
-            'Delta_E_H': 60.6e-3,
+            #'Delta_E_H': 60.6e-3,
             },
         (2, 2, 0): {
-            'E_H': 4.91561e3,
+            #'E_H': 4.91561e3,
             'Lambda_bar_s_H': 1.98e-6,
             'w_s_H': 3.04e-5,
-            'Delta_E_H': 106.0e-3,
+            #'Delta_E_H': 106.0e-3,
             },
         }
 
@@ -359,6 +359,7 @@ class SeedPower:
                 }
         h5_storage.saveH5Recursive(filename, outp_dict)
         print('Wrote %s with keys s, power, phase' % filename)
+        return outp_dict
 
 
 class TransferFunction(TransferFunctionSimple):
