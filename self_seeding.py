@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 from scipy.special import jv
 from scipy.constants import hbar, h, c, e, epsilon_0
@@ -5,11 +6,13 @@ from scipy.constants import hbar, h, c, e, epsilon_0
 from PassiveWFMeasurement import h5_storage
 from PassiveWFMeasurement import beam_profile
 
+from .bragg_data import get_x0h_data
+
 sqrt = np.emath.sqrt
 
 crystal_table = {}
 crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
-        'd_H': 3.56712e-10,
+        'd_H': 3.5668e-10, # https://x-server.gmca.aps.anl.gov
         (3, 3, 3): {
             'E_H': 9.03035e3,
             'Lambda_bar_s_H': 7.83e-6,
@@ -30,18 +33,18 @@ crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
             },
         }
 
-chi_0_dict = {
-        # xr0, xi0 from https://x-server.gmca.aps.anl.gov/
-        ('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
-        ('diamond', 0, 0, 4, 9.70e3): -0.15532E-4+ 1j*0.13981e-7,
-        }
-
-chi_h_dict = {
-        # xrh, xih from https://x-server.gmca.aps.anl.gov/
-        # Somehow need to flip sign of real part
-        ('diamond', 0, 0, 4, 9.83e3, 'sigma'): -0.37824e-5 + 1j*0.12060e-7,
-        ('diamond', 0, 0, 4, 9.70e3, 'sigma'): -0.38851e-5 + 1j*0.12768e-7,
-        }
+#chi_0_dict = {
+#        # xr0, xi0 from https://x-server.gmca.aps.anl.gov/
+#        ('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
+#        ('diamond', 0, 0, 4, 9.70e3): -0.15532E-4+ 1j*0.13981e-7,
+#        }
+#
+#chi_h_dict = {
+#        # xrh, xih from https://x-server.gmca.aps.anl.gov/
+#        # Somehow need to flip sign of real part
+#        ('diamond', 0, 0, 4, 9.83e3, 'sigma'): -0.37824e-5 + 1j*0.12060e-7,
+#        ('diamond', 0, 0, 4, 9.70e3, 'sigma'): -0.38851e-5 + 1j*0.12768e-7,
+#        }
 
 
 def plane_norm(plane_points):
@@ -123,23 +126,29 @@ def plane_angle(plane_coordinates_1,plane_coordinates_2):
     return np.arccos((norm1[0]*norm2[0]+norm1[1]*norm2[1]+norm1[2]*norm2[2])/np.sqrt(norm1[0]**2+norm1[1]**2+norm1[2]**2)/np.sqrt(norm2[0]**2+norm2[1]**2+norm2[2]**2))
 
 class SimpleCrystal:
-    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma'):
+    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True):
         self.material = material
         self.hkl = hkl
-        self.hkl_key = tuple(hkl)
         self.cut = cut
         self.photon_energy = photon_energy
         self.polarization = polarization
         if polarization != 'sigma':
             raise ValueError('Pi polarization not implemented!')
 
-        self.material_properties = crystal_table[self.material][self.hkl_key].copy()
+        h_, k_, l_ = hkl
+        for permutation in itertools.permutations([abs(h_), abs(k_), abs(l_)]):
+            if permutation in crystal_table[self.material]:
+                self.material_properties = crystal_table[self.material][permutation].copy()
+                break
+        else:
+            raise ValueError(hkl)
         self.material_properties['d_H'] = d_H = crystal_table[self.material]['d_H']
         self.material_properties['d'] = thickness
 
         self.lambda0 = h*c/(self.photon_energy*e)
         self.K0 = 2*np.pi/self.lambda0
         self.omega_0 = self.K0*c
+        self.P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
 
         a1=[d_H, 0, 0]
         a2=[0, d_H, 0]
@@ -154,21 +163,25 @@ class SimpleCrystal:
         self.gamma_H = np.cos(self.psi_H) # Eq. 15 from Shvydko & Lindberg 2012
         self.b = self.gamma_0/self.gamma_H # Eq. 15 from Shvydko & Lindberg 2012
 
+        self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
+        print('before', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
+        try:
+            table_data = get_x0h_data(self.material, *self.hkl, photon_energy)
+            self.material_properties['chi_0'] = table_data['xr0'] + 1j*table_data['xi0']
+            self.material_properties['chi_H'] = -table_data['xrh'] + 1j*table_data['xih'] # somehow need to flip the sign of the real part
+            self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(self.P)*np.sqrt(self.material_properties['chi_H']**2)) # Eq. 40 from Shvydko & Lindberg 2012
+            self.material_properties['w_s_H'] = -self.material_properties['chi_0']/(2*np.sin(self.theta)) # Eq. 44 from Shvydko & Lindberg 2012
+        except:
+            if force_table:
+                raise
+            self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
+        print('after', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
+
+
         self.Tau_0 = (2*self.material_properties['Lambda_bar_s_H']**2) / (c*self.material_properties['d']/self.gamma_0) # Eq. 8 from Yang & Shvydko 2013
         self.Tau_d = (2*self.material_properties['d']*np.sin(self.theta)**2)/(c*np.abs(self.gamma_H)) # Eq. 8 from Yang & Shvydko 2013
 
-        self.chi_0 = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
-        #self.chi_0 -= 0.001*1j*self.chi_0 # trial and error
-        hkl_key = (self.material,)+self.hkl_key+(self.photon_energy,)
-        for hkl_key, data in chi_0_dict.items():
-            material, h_, k_, l_, photon_energy = hkl_key
-            if material == self.material and (h_, k_, l_) == self.hkl_key and abs(photon_energy - self.photon_energy) < 10:
-                print('chi_0 before', self.chi_0)
-                self.chi_0 = data
-                print('chi_0 after', self.chi_0)
-            else:
-                print('Skipped %s' % str(hkl_key))
-        self.C = np.exp(1j*self.chi_0 * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
+        self.C = np.exp(1j*self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
 
     def calc_G_tilde_00_simple(self, xi_0):
         """
@@ -197,19 +210,6 @@ class SimpleCrystal:
 class Crystal(SimpleCrystal):
     def __init__(self, *args, **kwargs):
         SimpleCrystal.__init__(self, *args, **kwargs)
-
-        for key, data in chi_h_dict.items():
-            (material, h_, k_, l_, photon_energy, polarization) = key
-            if material == self.material and (h_, k_, l_) == self.hkl_key and self.polarization == polarization and photon_energy - (self.photon_energy) < 10:
-                print('lambda old', self.material_properties['Lambda_bar_s_H'])
-                P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
-                self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(P)*np.sqrt(data**2))
-                print('lambda new', self.material_properties['Lambda_bar_s_H'])
-            #else:
-            #    print('Skip %s' % str(key))
-            #elif self.polarization == 'pi':
-            #    self.material_properties['Lambda_bar_s_H'] = self.material_properties['Lambda_bar_s_H']/np.cos(2*self.theta)
-
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
         self.w_H = self.material_properties['w_s_H'] * (self.b-1)/(2*self.b) # Eq. 44 from Shvydko & Lindberg 2012
@@ -233,8 +233,8 @@ class Crystal(SimpleCrystal):
         Y_2 = -y - sqrt(y**2 + self.b/np.abs(self.b))
         R_1 = G*Y_1
         R_2 = G*Y_2
-        kappa_1d = self.chi_0 * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_1
-        kappa_2d = self.chi_0 * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
+        kappa_1d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_1
+        kappa_2d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
 
         R_00 = np.exp(1j*kappa_1d) * (R_2 - R_1) / (R_2 - R_1*np.exp(1j*(kappa_1d - kappa_2d)))
         return TransferFunction(Omega, R_00, self.C, self.omega_0)
