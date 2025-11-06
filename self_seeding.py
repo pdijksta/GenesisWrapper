@@ -171,7 +171,7 @@ class SimpleCrystal:
         try:
             table_data = get_x0h_data(self.material, *self.hkl, photon_energy)
             self.material_properties['chi_0'] = table_data['xr0'] + 1j*table_data['xi0']
-            self.material_properties['chi_H'] = -table_data['xrh'] + 1j*table_data['xih'] # somehow need to flip the sign of the real part
+            self.material_properties['chi_H'] = table_data['xrh'] - 1j*table_data['xih'] # somehow need to flip the sign of one of the parts
             self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(self.P)*np.sqrt(self.material_properties['chi_H']**2)) # Eq. 40 from Shvydko & Lindberg 2012
             self.material_properties['w_s_H'] = -self.material_properties['chi_0']/(2*np.sin(self.theta)) # Eq. 44 from Shvydko & Lindberg 2012
         except:
@@ -225,7 +225,7 @@ class Crystal(SimpleCrystal):
         y = (Omega - self.w_H*(self.omega_0-Omega)) * self.Tau_Lambda / (-np.sign(self.b))
         return y
 
-    def calc_R_00(self, Omega):
+    def calc_R_00(self, Omega, outp='tf'):
         """
         Eq. 38 from Shvydko & Lindberg 2012
         """
@@ -239,7 +239,13 @@ class Crystal(SimpleCrystal):
         kappa_2d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
 
         R_00 = np.exp(1j*kappa_1d) * (R_2 - R_1) / (R_2 - R_1*np.exp(1j*(kappa_1d - kappa_2d)))
-        return TransferFunction(Omega, R_00, self.C, self.omega_0)
+        if outp == 'tf':
+            return TransferFunction(Omega, R_00, self.C, self.omega_0)
+        elif outp == 'mult':
+            return Multiplication(Omega, R_00, self.C, self.omega_0)
+
+    def get_mult(self, Omega):
+        return self.calc_R_00(Omega, outp='mult')
 
     def calc_R_00_v2(self, Omega):
         """
