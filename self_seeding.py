@@ -6,7 +6,10 @@ from scipy.constants import hbar, h, c, e, epsilon_0
 from PassiveWFMeasurement import h5_storage
 from PassiveWFMeasurement import beam_profile
 
-from .bragg_data import get_x0h_data
+try:
+    from .bragg_data import get_x0h_data
+except ImportError:
+    from bragg_data import get_x0h_data
 
 sqrt = np.emath.sqrt
 
@@ -163,8 +166,8 @@ class SimpleCrystal:
         self.gamma_H = np.cos(self.psi_H) # Eq. 15 from Shvydko & Lindberg 2012
         self.b = self.gamma_0/self.gamma_H # Eq. 15 from Shvydko & Lindberg 2012
 
-        self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
-        print('before', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
+        #self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
+        #print('before', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
         try:
             table_data = get_x0h_data(self.material, *self.hkl, photon_energy)
             self.material_properties['chi_0'] = table_data['xr0'] + 1j*table_data['xi0']
@@ -175,7 +178,7 @@ class SimpleCrystal:
             if force_table:
                 raise
             self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
-        print('after', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
+        #print('after', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
 
 
         self.Tau_0 = (2*self.material_properties['Lambda_bar_s_H']**2) / (c*self.material_properties['d']/self.gamma_0) # Eq. 8 from Yang & Shvydko 2013
@@ -189,7 +192,7 @@ class SimpleCrystal:
         """
         mask = xi_0 != 0
         arg = np.sqrt(xi_0[mask]/self.Tau_0 * (1+xi_0[mask]/self.Tau_d))
-        G_tilde_00 = np.empty_like(xi_0)
+        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
         G_tilde_00[~mask] = -1/(4*self.Tau_0)
         G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
         return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
@@ -200,11 +203,10 @@ class SimpleCrystal:
         """
         mask = xi_0 != 0
         arg = np.sqrt(xi_0[mask]/self.Tau_0)
-        G_tilde_00 = np.empty_like(xi_0)
+        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
         G_tilde_00[~mask] = 1/(4*self.Tau_0) * np.sign(self.b)
         G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
         return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
-
 
 
 class Crystal(SimpleCrystal):
@@ -238,7 +240,6 @@ class Crystal(SimpleCrystal):
 
         R_00 = np.exp(1j*kappa_1d) * (R_2 - R_1) / (R_2 - R_1*np.exp(1j*(kappa_1d - kappa_2d)))
         return TransferFunction(Omega, R_00, self.C, self.omega_0)
-
 
     def calc_R_00_v2(self, Omega):
         """
