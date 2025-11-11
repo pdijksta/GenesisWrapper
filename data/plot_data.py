@@ -10,6 +10,7 @@ dfiles = [
         './x0h_resultsC004.dat', # EuXFEL at 6 keV (with 100 cut) and LCLS at 8.3 keV (also with 100 cut)
         './x0h_resultsC220.dat', # Mentioned in Yang & Shvyd'Ko paper
         './x0h_resultsC111.dat', # PAL-XFEL at 3.5 keV (with 110 cut)
+        './x0h_resultsC511.dat', # Mentioned in Yang & Shvyd'Ko paper
         './x0h_resultsC333.dat', # PAL-XFEL at 9.7 keV (with 100 cut)
         './x0h_resultsC533.dat', # PAL-XFEL at 14.6 keV (with 100 cut)
         ]
