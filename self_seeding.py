@@ -34,6 +34,12 @@ crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
             'w_s_H': 3.04e-5,
             #'Delta_E_H': 106.0e-3,
             },
+        (5, 1, 1): {
+            #'E_H': 4.91561e3,
+            'Lambda_bar_s_H': 7.83e-6,
+            'w_s_H': 30e-6,
+            #'Delta_E_H': 106.0e-3,
+            },
         }
 
 #chi_0_dict = {

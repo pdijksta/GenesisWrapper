@@ -24,7 +24,7 @@
 
 ## #--------------Input parameters---------------------------
 ### Energy range and the number of energy points
-  E1=10			#start energy
+  E1=9.9			#start energy
   E2=15			#end energy
   n=30			#number of pts (please stay within a few dozen!)
 
