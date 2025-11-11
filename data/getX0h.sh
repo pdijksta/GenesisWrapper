@@ -24,7 +24,7 @@
 
 ## #--------------Input parameters---------------------------
 ### Energy range and the number of energy points
-  E1=7			#start energy
+  E1=5			#start energy
   E2=15			#end energy
   n=50			#number of pts (please stay within a few dozen!)
 
@@ -49,8 +49,8 @@
   rho=''                # works with coway=2 only
 
 ### Miller indices:
-  i1=4
-  i2=0
+  i1=2
+  i2=2
   i3=0
 
 ### Output file:
