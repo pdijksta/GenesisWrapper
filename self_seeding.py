@@ -7,15 +7,15 @@ from PassiveWFMeasurement import h5_storage
 from PassiveWFMeasurement import beam_profile
 
 try:
-    from .bragg_data import get_x0h_data
+    from . import bragg_data
 except ImportError:
-    from bragg_data import get_x0h_data
+    import bragg_data
 
 sqrt = np.emath.sqrt
 
 crystal_table = {}
 crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
-        'd_H': 3.5668e-10, # https://x-server.gmca.aps.anl.gov
+        'A': 3.5668e-10, # https://x-server.gmca.aps.anl.gov
         (3, 3, 3): {
             #'E_H': 9.03035e3,
             'Lambda_bar_s_H': 7.83e-6,
@@ -135,7 +135,7 @@ def plane_angle(plane_coordinates_1,plane_coordinates_2):
     return np.arccos((norm1[0]*norm2[0]+norm1[1]*norm2[1]+norm1[2]*norm2[2])/np.sqrt(norm1[0]**2+norm1[1]**2+norm1[2]**2)/np.sqrt(norm2[0]**2+norm2[1]**2+norm2[2]**2))
 
 class SimpleCrystal:
-    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True):
+    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True, allow_laue=False):
         self.material = material
         self.hkl = hkl
         self.cut = cut
@@ -150,8 +150,11 @@ class SimpleCrystal:
                 self.material_properties = crystal_table[self.material][permutation].copy()
                 break
         else:
-            raise ValueError(hkl)
-        self.material_properties['d_H'] = d_H = crystal_table[self.material]['d_H']
+            if force_table:
+                self.material_properties = {}
+            else:
+                raise ValueError(hkl)
+        self.material_properties['A'] = A = crystal_table[self.material]['A']
         self.material_properties['d'] = thickness
 
         self.lambda0 = h*c/(self.photon_energy*e)
@@ -159,13 +162,26 @@ class SimpleCrystal:
         self.omega_0 = self.K0*c
         self.P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
 
-        a1=[d_H, 0, 0]
-        a2=[0, d_H, 0]
-        a3=[0, 0, d_H]
+        a1=[A, 0, 0]
+        a2=[0, A, 0]
+        a3=[0, 0, A]
         self.d_H = crystal_plane_distance(a1,a2,a3,np.array(self.hkl)) # distance along the plane used for diffraction
         self.H = 2*np.pi/self.d_H # reciprocal lattice vector
-        self.theta = np.arcsin(self.H/(2*self.K0)) # Bragg's law
-        self.eta = plane_angle(cut, hkl)
+        theta_arg = self.H/(2*self.K0)
+        if abs(theta_arg) > 1:
+            raise bragg_data.PhotonEnergyException('Angle impossible')
+        self.theta = np.arcsin(theta_arg) # Bragg's law
+        self.eta = plane_angle(cut, hkl) # angle between H and surface
+
+        if -self.theta < self.eta < self.theta: # Caption of Fig. 1 from Shvydko & Lindberg 2012
+            self.type = 'Bragg'
+        elif - self.theta < self.eta < np.pi - self.theta: # Caption of Fig. 1 from Shvydko & Lindberg 2012
+            self.type = 'Laue'
+            if not allow_laue:
+                raise bragg_data.PhotonEnergyException('Laue geometry')
+        else:
+            raise bragg_data.PhotonEnergyException('Angles wrong')
+
         self.psi_0 = self.theta + self.eta - np.pi/2 # Caption of Fig. 1 from Shvydko & Lindberg 2012
         self.psi_H = np.pi/2 + self.theta - self.eta # Caption of Fig. 1 from Shvydko & Lindberg 2012
         self.gamma_0 = np.cos(self.psi_0) # Eq. 15 from Shvydko & Lindberg 2012
@@ -175,10 +191,10 @@ class SimpleCrystal:
         #self.material_properties['chi_0'] = -self.material_properties['w_s_H']*2*np.sin(self.theta)**2 # Eq. 44 from Shvydko & Lindberg 2012
         #print('before', self.material_properties['chi_0'], self.material_properties['Lambda_bar_s_H'], self.material_properties['w_s_H'])
         try:
-            table_data = get_x0h_data(self.material, *self.hkl, photon_energy)
+            table_data = bragg_data.get_x0h_data(self.material, *self.hkl, photon_energy)
             self.material_properties['chi_0'] = table_data['xr0'] + 1j*table_data['xi0']
             self.material_properties['chi_H'] = table_data['xrh'] - 1j*table_data['xih'] # somehow need to flip the sign of one of the parts
-            self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(self.P)*np.sqrt(self.material_properties['chi_H']**2)) # Eq. 40 from Shvydko & Lindberg 2012
+            self.material_properties['Lambda_bar_s_H'] = np.sin(self.theta)/(self.K0*np.abs(self.P)*self.material_properties['chi_H']) # Eq. 40 from Shvydko & Lindberg 2012
             self.material_properties['w_s_H'] = -self.material_properties['chi_0']/(2*np.sin(self.theta)) # Eq. 44 from Shvydko & Lindberg 2012
         except:
             if force_table:

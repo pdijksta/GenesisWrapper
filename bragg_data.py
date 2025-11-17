@@ -12,6 +12,9 @@ material_label_dict = {
         'C': 'diamond',
         }
 
+class PhotonEnergyException(ValueError):
+    pass
+
 for dfile in dfiles:
     basename = os.path.basename(dfile)
     groups = re_dfile.match(basename).groups()
@@ -37,7 +40,7 @@ def get_x0h_data(material, h_, k_, l_, photon_energy_eV):
 
     data_photon_energy = this_data['photon_energy_keV']*1e3
     if photon_energy_eV < data_photon_energy[0] or photon_energy_eV > data_photon_energy[-1]:
-        raise ValueError('Data only available between %.0f and %.0f eV, not for %.0f eV' % (data_photon_energy[0], data_photon_energy[-1], photon_energy_eV))
+        raise PhotonEnergyException('Data only available between %.0f and %.0f eV, not for %.0f eV' % (data_photon_energy[0], data_photon_energy[-1], photon_energy_eV))
 
     outp ={}
     for key in dfile_columns[1:]:
