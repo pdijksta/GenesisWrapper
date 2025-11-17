@@ -24,9 +24,9 @@
 
 ## #--------------Input parameters---------------------------
 ### Energy range and the number of energy points
-  E1=7.7			#start energy
-  E2=10			#end energy
-  n=25			#number of pts (please stay within a few dozen!)
+  E1=9.1			#start energy
+  E2=15			#end energy
+  n=50			#number of pts (please stay within a few dozen!)
 
 ### Energy step:
 # dE=$(echo "($E2-$E1)/($n-1)" | bc -l)
@@ -49,8 +49,8 @@
   rho=''                # works with coway=2 only
 
 ### Miller indices:
-  i1=3
-  i2=3
+  i1=5
+  i2=1
   i3=1
 
 ### Output file:
