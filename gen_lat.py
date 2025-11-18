@@ -17,7 +17,7 @@ FEL: LINE = {10*FODO,Un};
 
 def def_drift(ctr, ld):
     key = 'D%02i' % ctr
-    string = '%s: Drift = {l=%.8f };\n' % (key, ld)
+    string = '%s: Drift = {l=%.8f};\n' % (key, ld)
     return key, string
 
 def def_quad(ctr, lq, k1):
@@ -101,7 +101,8 @@ class lat_file:
     def add_line(self, key, elems, add_to_list=True):
         elem_str = ''
         for elem in elems:
-            assert elem in self.elem_dict.keys()
+            if elem not in self.elem_dict:
+                raise KeyError(elem)
             elem_str += '%s,' % elem
         string = '%s: LINE = {%s};\n' % (key, elem_str[:-1])
         self.elem_dict[key] = string
@@ -234,9 +235,16 @@ def aramis_self_seeding_lat(filename, n_und_first_stage, n_und_second_stage, k_f
         return key
 
     keys = [add_cell(k_first_stage[n_und]) for n_und in range(n_und_first_stage)]
-    keys.append(lat.add_marker(dumpfield=dumpfield, dumpbeam=0))
-    keys.append(lat.add_chicane(lc, lb, lcd, delay))
-    keys.append(lat.add_marker(dumpfield=0, dumpbeam=1))
+    chic_cell = []
+    chic_cell.append(lat.add_marker(dumpfield=dumpfield, dumpbeam=0))
+    chic_cell.append(lat.add_chicane(lc, lb, lcd, delay))
+    ld3 = lambdau*nwig+ld1+ld2+lq - (lc+lq+ld2)
+    chic_cell.append(lat.add_drift(ld3))
+    chic_cell.append([q_foc, q_defoc][cell_ctr % 2])
+    cell_ctr += 1
+    chic_cell.append(d2)
+    chic_cell.append(lat.add_marker(dumpfield=0, dumpbeam=1))
+    keys.append(lat.add_line('CHICANE_CELL', chic_cell))
     lat.add_line('FEL1', keys)
 
     keys = [add_cell(k_second_stage[n_und]) for n_und in range(n_und_second_stage)]
