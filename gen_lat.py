@@ -16,19 +16,30 @@ FEL: LINE = {10*FODO,Un};
 """
 
 def def_drift(ctr, ld):
-    key = 'D%i' % ctr
-    string = '%s: Drift = { l=%.8f };\n' % (key, ld)
+    key = 'D%02i' % ctr
+    string = '%s: Drift = {l=%.8f };\n' % (key, ld)
     return key, string
 
 def def_quad(ctr, lq, k1):
-    key = 'QF%i' % ctr
-    string = '%s: Quadrupole = { l=%.8f, k1=%.8f};\n' % (key, lq, k1)
+    head = 'QF' if k1 <= 0 else 'QD'
+    key = '%s%02i' % (head, ctr)
+    string = '%s: Quadrupole = {l=%.8f, k1=%.8f};\n' % (key, lq, k1)
     return key, string
 
 def def_und(ctr, lambdau, nwig, k):
     aw = k/np.sqrt(2)
-    key = 'Un%i' % ctr
+    key = 'Un%02i' % ctr
     string = '%s: Undulator = {lambdau=%.8f,nwig=%i, aw=%.8f};\n' % (key, lambdau, nwig, aw)
+    return key, string
+
+def def_chicane(ctr, lc, lb, ld, delay):
+    key = 'CHIC%02i' % ctr
+    string = '%s: Chicane = {lc=%.8f, lb=%.8f, ld=%.8f, delay=%.8e);\n' % (key, lc, lb, ld, delay)
+    return key, string
+
+def add_marker(ctr, dumpfield, dumpbeam, sort, stop):
+    key = 'MARK%02i' % ctr
+    string = '%s: Marker = {dumpfield=%i, dumpbeam=%i, sort=%i, stop=%i);\n' % (key, dumpfield, dumpbeam, sort, stop)
     return key, string
 
 class lat_file:
@@ -39,6 +50,8 @@ class lat_file:
         self.und_ctr = 0
         self.drift_ctr = 0
         self.quad_ctr = 0
+        self.chicane_ctr = 0
+        self.marker_ctr = 0
         self.elem_dict = OrderedDict()
         self.elem_list = []
         self.k_list = []
@@ -55,6 +68,12 @@ class lat_file:
         self.k_list.append(k_tapered)
         return key
 
+    def add_marker(self, dumpfield=0, dumpbeam=0, sort=0, stop=0):
+        key, string = add_marker(self.marker_ctr, dumpfield, dumpbeam, sort, stop)
+        self.marker_ctr += 1
+        self.elem_dict[key] = string
+        return key
+
     def add_drift(self, ld):
         key, string = def_drift(self.drift_ctr, ld)
         self.drift_ctr += 1
@@ -67,18 +86,28 @@ class lat_file:
         self.elem_dict[key] = string
         return key
 
+    def add_chicane(self, lc, lb, ld, delay, add_to_list=False):
+        key, string = def_chicane(self.chicane_ctr, lc, lb, ld, delay)
+        self.chicane_ctr += 1
+        self.elem_dict[key] = string
+        if add_to_list:
+            self.elem_list.append(key)
+        return key
+
     def add_elem(self, key):
         assert key in self.elem_dict
         self.elem_list.append(key)
 
-    def add_line(self, key, elems):
+    def add_line(self, key, elems, add_to_list=True):
         elem_str = ''
         for elem in elems:
             assert elem in self.elem_dict.keys()
             elem_str += '%s,' % elem
         string = '%s: LINE = {%s};\n' % (key, elem_str[:-1])
-        self.elem_list.append(key)
         self.elem_dict[key] = string
+        if add_to_list:
+            self.elem_list.append(key)
+        return key
 
     def add_final_line(self):
         self.add_line('FEL', self.elem_list)
@@ -88,6 +117,7 @@ class lat_file:
         with open(fname, 'w') as f:
             f.write(content)
         return content
+
 
 def gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, extra_un, lin_taper, quad_taper, und_ctr_quad):
     lat = lat_file(lin_taper, quad_taper, und_ctr_quad)
@@ -123,8 +153,6 @@ def gen_fodo_beamline_k_arr(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_arr
         lat.add_elem(un)
     lat.add_final_line()
     return lat
-
-
 
 def sase3_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_foc=0.554, k1_defoc=-0.554, n_fodo=None):
     ld = 0.47465
@@ -175,6 +203,45 @@ def aramis_lat(filename, k_init, lin_taper=0, quad_taper=0, und_ctr_quad=0, k1_f
         n_fodo = n_und // 2
         add_undulator = bool(n_und - int(2*n_fodo))
         lat = gen_fodo_beamline_tapered(ld1, ld2, lq, k1_foc, k1_defoc, lambdau, nwig, k_init, n_fodo, True, lin_taper, quad_taper, und_ctr_quad)
+    content = lat.write_lat(filename)
+    return lat, content
+
+def aramis_self_seeding_lat(filename, n_und_first_stage, n_und_second_stage, k_first_stage, k_second_stage, delay, k1_foc=2.5, k1_defoc=-2.5, dumpfield=0):
+    ld1 = 0.355
+    ld2 = 0.34
+    lq = 0.08
+    lambdau = 0.015
+    nwig = 265
+    lc = 1 # Just use some numbers for now
+    lb = 0.1
+    lcd = 0.1
+    delay = delay
+
+    lat = lat_file()
+    d1 = lat.add_drift(ld1)
+    d2 = lat.add_drift(ld2)
+    q_foc = lat.add_quad(lq, k1_foc)
+    q_defoc = lat.add_quad(lq, k1_defoc)
+    cell_ctr = 0
+
+    def add_cell(k):
+        nonlocal cell_ctr
+        key_q = [q_foc, q_defoc][cell_ctr % 2]
+        un = lat.add_undulator(lambdau, nwig, k)
+        key = 'CELL%02i' % cell_ctr
+        lat.add_line(key, [un, d1, key_q, d2], add_to_list=False)
+        cell_ctr += 1
+        return key
+
+    keys = [add_cell(k_first_stage[n_und]) for n_und in range(n_und_first_stage)]
+    keys.append(lat.add_marker(dumpfield=dumpfield, dumpbeam=0))
+    keys.append(lat.add_chicane(lc, lb, lcd, delay))
+    keys.append(lat.add_marker(dumpfield=0, dumpbeam=1))
+    lat.add_line('FEL1', keys)
+
+    keys = [add_cell(k_second_stage[n_und]) for n_und in range(n_und_second_stage)]
+    lat.add_line('FEL2', keys)
+
     content = lat.write_lat(filename)
     return lat, content
 
