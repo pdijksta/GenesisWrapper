@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import jv
-from scipy.constants import c, m_e, e, epsilon_0
+from scipy.constants import h, c, m_e, e, epsilon_0
 
 m_e_eV = m_e*c**2/e
 I_Alvfen = 4*np.pi*epsilon_0*m_e*c**3/e
@@ -30,6 +30,9 @@ def chirp_to_lin_taper_saldin(n_wig, lambdaR, gamma0, lambda_u, chirp_eV_s):
     t1 = (k0-k1)/k0
     return t1
 
+def calc_gamma(k, lambda_, lambda_u):
+    return np.sqrt(lambda_u/(2*lambda_) * (1+k**2/2))
+
 def calc_rho(sim, lambda_u):
     gamma = sim['Beam/energy'][0].mean()
     lambdaR = sim['Global/lambdaref']
@@ -41,4 +44,14 @@ def calc_rho(sim, lambda_u):
 
     rho = (K**2 * JJ**2 / (8*np.pi) * current/I_Alvfen * lambda_u**2 / (gamma**3*8*np.pi*sig_sq))**(1/3)
     return rho
+
+def calc_gamma_k(gamma_max, k_max, photon_energy_eV, lambda_u):
+    """Returns gamma and k for given limits and photon energy, such that k is maximum if possible"""
+    lambda0 = h*c/(photon_energy_eV*e)
+    gamma0 = gamma_max
+    k = calc_k(gamma0, lambda0, lambda_u)
+    if k > k_max:
+        k = k_max
+        gamma0 = calc_gamma(k, lambda0, lambda_u)
+    return gamma0, k
 
