@@ -34,12 +34,12 @@ def def_und(ctr, lambdau, nwig, k):
 
 def def_chicane(ctr, lc, lb, ld, delay):
     key = 'CHIC%02i' % ctr
-    string = '%s: Chicane = {lc=%.8f, lb=%.8f, ld=%.8f, delay=%.8e);\n' % (key, lc, lb, ld, delay)
+    string = '%s: Chicane = {lc=%.8f, lb=%.8f, ld=%.8f, delay=%.8e};\n' % (key, lc, lb, ld, delay)
     return key, string
 
 def add_marker(ctr, dumpfield, dumpbeam, sort, stop):
     key = 'MARK%02i' % ctr
-    string = '%s: Marker = {dumpfield=%i, dumpbeam=%i, sort=%i, stop=%i);\n' % (key, dumpfield, dumpbeam, sort, stop)
+    string = '%s: Marker = {dumpfield=%i, dumpbeam=%i, sort=%i, stop=%i};\n' % (key, dumpfield, dumpbeam, sort, stop)
     return key, string
 
 class lat_file:
