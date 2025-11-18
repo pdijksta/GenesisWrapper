@@ -4,6 +4,7 @@ from scipy.special import jv
 from scipy.constants import hbar, h, c, e, epsilon_0
 
 from PassiveWFMeasurement import h5_storage
+from PassiveWFMeasurement import gaussfit
 from PassiveWFMeasurement import beam_profile
 
 try:
@@ -357,9 +358,9 @@ class SeedPower:
 
     def shift_time(self, input_time, input_power, clip=True):
         prof0 = beam_profile.AnyProfile(input_time, input_power)
-        prof0.cutoff(1e-2)
+        prof0.cutoff(5e-2)
         prof = beam_profile.AnyProfile(self.time, self.power_amplitude)
-        prof.cutoff(1e-2)
+        prof.cutoff(5e-2)
         time_shift = prof0.mean() - prof.mean()
         self.time += time_shift
         if clip:
@@ -379,8 +380,9 @@ class SeedPower:
                 'power': self.power_amplitude[mask][::-1],
                 'phase': self.phase[mask][::-1],
                 }
-        h5_storage.saveH5Recursive(filename, outp_dict)
-        print('Wrote %s with keys s, power, phase' % filename)
+        if filename is not None:
+            h5_storage.saveH5Recursive(filename, outp_dict)
+            print('Wrote %s with keys s, power, phase' % filename)
         return outp_dict
 
 
@@ -411,6 +413,37 @@ class TransferFunction(TransferFunctionSimple):
         #print('Scale G_00 by factor %e' % factor)
         #self.G_00 = np.fft.fftshift(np.fft.fft(self.R_00)) * np.exp(1j*self.omega_ref*self.xi_0)
 
+
+class SeedGenerator:
+    def __init__(self, sim, photon_energy_window=10, pew_size=1e5, z_index=-1, crystal=None):
+        self.sim = sim
+        self.z_index = z_index
+        self.crystal = crystal
+        self.Omega_arr = np.linspace(-photon_energy_window/2, photon_energy_window/2, int(pew_size))/hbar*e
+        self.freq, self.spectrum = self.sim.get_frequency_spectrum(self.z_index, multiply_length=5, key_amp='Field/power', key_phase='Field/phase-nearfield', type_='field')
+
+    def set_crystal(self, crystal):
+        self.crystal = crystal
+
+    def get_spectrum_peak(self):
+        self.gf = gaussfit.GaussFit(self.freq*h/e, np.abs(self.spectrum)**2, fit_const=False)
+        return self.gf.mean
+
+    def generate_seed(self, filename, delay):
+        self.mult = mult = self.crystal.get_mult(self.Omega_arr)
+        self.mult_outp = mult_outp = mult.multiplication(self.freq*h/e, self.spectrum, self.sim.photon_energy_ref)
+        seed_power = mult_outp['seed_power']
+        seed_power.shift_time(self.sim.time, self.sim['Field/power'][self.z_index])
+
+        s_len = self.sim.input['time']['slen']
+        current_mask = self.sim['Beam/current'][0] != 0
+        blen_arr = self.sim['Global/s'][current_mask]
+        bunch_len = abs(blen_arr[-1] - blen_arr[0])
+
+        shift = (s_len-bunch_len)/c
+        tmin, tmax = delay+shift, delay+bunch_len/c+shift
+        seed_dict = seed_power.writeH5(filename, tmin, tmax, 0)
+        return seed_dict
 
 def generate_seed(sim, crystal, z_pos, max_time, *write_args):
     z_index = sim.z_index(z_pos)

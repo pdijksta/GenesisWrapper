@@ -4,7 +4,7 @@ import glob
 import h5py
 import numpy as np
 import numpy.fft as fft
-from scipy.constants import c, epsilon_0
+from scipy.constants import h, c, e, epsilon_0
 
 from . import averagePower
 from .view import ViewBase
@@ -55,6 +55,7 @@ class GenesisSimulation(ViewBase):
 
     def _init(self):
         self._dict = {}
+        self.photon_energy_ref = h*c/(self['Global/lambdaref']*e)
         zshape, tshape = self['Field/power'].shape
         try:
             self.zplot = self['Global/zplot']
