@@ -32,9 +32,9 @@ def def_und(ctr, lambdau, nwig, k):
     string = '%s: Undulator = {lambdau=%.8f,nwig=%i, aw=%.8f};\n' % (key, lambdau, nwig, aw)
     return key, string
 
-def def_chicane(ctr, lc, lb, ld, delay):
+def def_chicane(ctr, l_, lb, ld, delay):
     key = 'CHIC%02i' % ctr
-    string = '%s: Chicane = {lc=%.8f, lb=%.8f, ld=%.8f, delay=%.8e};\n' % (key, lc, lb, ld, delay)
+    string = '%s: Chicane = {l=%.8f, lb=%.8f, ld=%.8f, delay=%.8e};\n' % (key, l_, lb, ld, delay)
     return key, string
 
 def add_marker(ctr, dumpfield, dumpbeam, sort, stop):
@@ -86,8 +86,8 @@ class lat_file:
         self.elem_dict[key] = string
         return key
 
-    def add_chicane(self, lc, lb, ld, delay, add_to_list=False):
-        key, string = def_chicane(self.chicane_ctr, lc, lb, ld, delay)
+    def add_chicane(self, l_, lb, ld, delay, add_to_list=False):
+        key, string = def_chicane(self.chicane_ctr, l_, lb, ld, delay)
         self.chicane_ctr += 1
         self.elem_dict[key] = string
         if add_to_list:
