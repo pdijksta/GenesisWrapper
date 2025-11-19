@@ -218,6 +218,11 @@ def aramis_self_seeding_lat(filename, n_und_first_stage, n_und_second_stage, k_f
     lcd = 0.1
     delay = delay
 
+    if not hasattr(k_first_stage, '__len__'):
+        k_first_stage = [k_first_stage]*n_und_first_stage
+    if not hasattr(k_second_stage, '__len__'):
+        k_second_stage = [k_second_stage]*n_und_second_stage
+
     lat = lat_file()
     d1 = lat.add_drift(ld1)
     d2 = lat.add_drift(ld2)
