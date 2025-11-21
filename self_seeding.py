@@ -371,6 +371,8 @@ class SeedPower:
         return time_shift
 
     def writeH5(self, filename, t_min, t_max, s_0=0, add_dict=None):
+        assert self.time.min() <= t_min
+        assert self.time.max() >= t_max
         mask = np.logical_and(self.time >= t_min, self.time <= t_max)
         s = -c*self.time[mask][::-1]
         s = s - s[0] + s_0
