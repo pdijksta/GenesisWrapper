@@ -370,7 +370,7 @@ class SeedPower:
             self.phase = self.phase[mask]
         return time_shift
 
-    def writeH5(self, filename, t_min, t_max, s_0=0):
+    def writeH5(self, filename, t_min, t_max, s_0=0, add_dict=None):
         mask = np.logical_and(self.time >= t_min, self.time <= t_max)
         s = -c*self.time[mask][::-1]
         s = s - s[0] + s_0
@@ -380,6 +380,9 @@ class SeedPower:
                 'power': self.power_amplitude[mask][::-1],
                 'phase': self.phase[mask][::-1],
                 }
+        if add_dict:
+            assert not set(outp_dict.keys()).intersection(add_dict.keys())
+            outp_dict.update(add_dict)
         if filename is not None:
             h5_storage.saveH5Recursive(filename, outp_dict)
             print('Wrote %s with keys s, power, phase' % filename)
@@ -442,7 +445,9 @@ class SeedGenerator:
 
         shift = (s_len-bunch_len)/c
         tmin, tmax = delay+shift, delay+bunch_len/c+shift
-        seed_dict = seed_power.writeH5(filename, tmin, tmax, 0)
+        seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={'mult_outp': mult_outp})
+        seed_dict['tmin'] = tmin
+        seed_dict['tmax'] = tmax
         return seed_dict
 
 def generate_seed(sim, crystal, z_pos, max_time, *write_args):
