@@ -438,13 +438,11 @@ class SeedGenerator:
         seed_power = mult_outp['seed_power']
         seed_power.shift_time(self.sim.time, self.sim['Field/power'][self.z_index])
 
-        s_len = self.sim.input['time']['slen']
         current_mask = self.sim['Beam/current'][0] != 0
         blen_arr = self.sim['Global/s'][current_mask]
         bunch_len = abs(blen_arr[-1] - blen_arr[0])
 
-        shift = (s_len-bunch_len)/c
-        tmin, tmax = delay+shift, delay+bunch_len/c+shift
+        tmin, tmax = delay, delay+bunch_len/c
         seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={'mult_outp': mult_outp})
         seed_dict['tmin'] = tmin
         seed_dict['tmax'] = tmax
