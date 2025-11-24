@@ -381,6 +381,9 @@ class SeedPower:
                 's': s,
                 'power': self.power_amplitude[mask][::-1],
                 'phase': self.phase[mask][::-1],
+                't_min': t_min,
+                't_max': t_min,
+                's_0': s_0,
                 }
         if add_dict:
             assert not set(outp_dict.keys()).intersection(add_dict.keys())
@@ -446,8 +449,6 @@ class SeedGenerator:
 
         tmin, tmax = delay, delay+bunch_len/c
         seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={'mult_outp': mult_outp})
-        seed_dict['tmin'] = tmin
-        seed_dict['tmax'] = tmax
         return seed_dict
 
 def generate_seed(sim, crystal, z_pos, max_time, *write_args):
