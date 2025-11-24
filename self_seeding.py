@@ -1,3 +1,4 @@
+import os
 import itertools
 import numpy as np
 from scipy.special import jv
@@ -460,6 +461,21 @@ def generate_seed(sim, crystal, z_pos, max_time, *write_args):
     tf_simple = crystal.calc_G_tilde_00_simple(xi_0)
     seed_power = tf_simple.convolute_power_profile(sim.time[::-1], sim['Field/power'][z_index][::-1], sim['Field/phase-nearfield'][z_index][::-1], sim['Global/lambdaref'], max_time=max_time)
     seed_power.writeH5(*write_args)
+
+data = np.loadtxt(os.path.join(os.path.dirname(__file__), './reflections.txt'), comments='#', delimiter=',')
+def get_cut_reflection(photon_energy):
+    photon_energies = data[:,0]
+    if photon_energy < photon_energies[0]:
+        raise ValueError('Photon energy too small!', photon_energy, photon_energies[0])
+
+    for ctr, pe2 in enumerate(photon_energies):
+        if pe2 > photon_energy:
+            break
+    else:
+        ctr += 1
+    cut = tuple(np.array(data[ctr-1,1:4], int))
+    hkl = tuple(np.array(data[ctr-1,-3:], int))
+    return cut, hkl
 
 
 if __name__ == '__main__':
