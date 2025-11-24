@@ -462,7 +462,7 @@ def generate_seed(sim, crystal, z_pos, max_time, *write_args):
     seed_power = tf_simple.convolute_power_profile(sim.time[::-1], sim['Field/power'][z_index][::-1], sim['Field/phase-nearfield'][z_index][::-1], sim['Global/lambdaref'], max_time=max_time)
     seed_power.writeH5(*write_args)
 
-data = np.loadtxt(os.path.join(os.path.dirname(__file__), './reflections.txt'), comments='#', delimiter=',')
+data = np.loadtxt(os.path.join(os.path.dirname(__file__), '/data/reflections.txt'), comments='#', delimiter=',')
 def get_cut_reflection(photon_energy):
     photon_energies = data[:,0]
     if photon_energy < photon_energies[0]:
