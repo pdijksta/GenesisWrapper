@@ -249,6 +249,7 @@ def aramis_self_seeding_lat(filename, n_und_first_stage, n_und_second_stage, k_f
     cell_ctr += 1
     chic_cell.append(d2)
     chic_cell.append(lat.add_marker(dumpfield=0, dumpbeam=1))
+    chic_cell.append(lat.add_undulator(lambdau, 50, 1)) #force simulation output file to include point after chicane
     keys.append(lat.add_line('CHICANE_CELL', chic_cell))
     lat.add_line('FEL1', keys)
 

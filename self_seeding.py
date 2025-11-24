@@ -423,9 +423,12 @@ class TransferFunction(TransferFunctionSimple):
 
 
 class SeedGenerator:
-    def __init__(self, sim, photon_energy_window=10, pew_size=1e5, z_index=-1, crystal=None):
+    def __init__(self, sim, photon_energy_window=10, pew_size=1e5, z_index=-1, crystal=None, z_pos=None):
         self.sim = sim
-        self.z_index = z_index
+        if z_pos is None:
+            self.z_index = z_index
+        else:
+            self.z_index = sim.z_index(z_pos)
         self.crystal = crystal
         self.Omega_arr = np.linspace(-photon_energy_window/2, photon_energy_window/2, int(pew_size))/hbar*e
         self.freq, self.spectrum = self.sim.get_frequency_spectrum(self.z_index, multiply_length=5, key_amp='Field/power', key_phase='Field/phase-nearfield', type_='field')
