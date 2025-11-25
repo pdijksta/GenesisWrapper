@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PassiveWFMeasurement import myplotstyle as ms
 from PassiveWFMeasurement import h5_storage
 
+from . import simulation
 from .gaussfit import GaussFit
 
 m_e_eV = m_e*c**2/e
@@ -211,17 +212,18 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     return outp_dict
 
-def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True):
+def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spectrum_plot_range=30, figtitle=None, s_stage2=None, seed_spectrum_plot_range=4):
     if standard_plot:
         if sim1:
             plot(sim1)
         plot(sim2)
 
-    seed_data = h5_storage.loadH5Recursive(seed_file)
 
-    fig = ms.figure('Self-seeding simulation %s' % sim2.infile)
+    figtitle = figtitle or 'Self-seeding simulation %s' % sim2.infile
+    fig = ms.figure(figtitle)
+    fig.set_constrained_layout(True)
     subplots = []
-    _subplot = ms.subplot_factory(3, 4)
+    _subplot = ms.subplot_factory(2, 3)
     sp_ctr = 1
 
     def subplot(*args, **kwargs):
@@ -229,27 +231,114 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True):
         subplots.append(sp)
         return sp
 
-    sp_pulse_energy_evo = subplot(sp_ctr, title='Pulse energy evo', xlabel='$s$ (m)', ylabel='$E$ (J)')
+    sp_pulse_energy_evo = subplot(sp_ctr, title='Pulse energy evolution', xlabel='$s$ (m)', ylabel='$E$ (J)')
     sp_ctr += 1
     sp_pulse_energy_evo.set_yscale('log')
+
+    seed_data = h5_storage.loadH5Recursive(seed_file)
+
+    s_stage2 = s_stage2_plot = s_stage2 or sim2.zplot[-1]
 
     if sim1:
         z_index = seed_data['z_index']
         zplot1 = sim1.zplot[:z_index]
         zplot = np.concatenate([zplot1, zplot1[-1]+sim2.zplot])
         pulse_energy = np.concatenate([sim1.get_all_pulse_energy()[:z_index], sim2.get_all_pulse_energy()])
+        sp_pulse_energy_evo.axvline(zplot1[-1], ls='--', color='black')
+        s_stage2_plot += zplot1[-1]
     else:
         zplot = sim2.zplot
         pulse_energy = sim2.get_all_pulse_energy()
 
+    sp_pulse_energy_evo.axvline(s_stage2_plot, color='tab:red', ls='--')
+
     sp_pulse_energy_evo.plot(zplot, pulse_energy)
 
-    if sim1:
-        sp_pulse_energy_evo.axvline(zplot1[-1], ls='--', color='black')
+    sp_sase_spectrum = subplot(sp_ctr, title='SASE spectrum', xlabel='$E$ (eV)', ylabel='Intensity (arb. units)')
+    sp_ctr += 1
+
+    xx = seed_data['mult_outp']['photon_energy_sim']
+    xx_ref = seed_data['mult_outp']['photon_energy_sim_ref']
+    mask = np.abs(xx - xx_ref) < sase_spectrum_plot_range/2
+    sp_sase_spectrum.plot(xx[mask], np.abs(seed_data['mult_outp']['spectrum_sim'][mask])**2)
+    sp_sase_spectrum.axvline(xx_ref, color='black', ls='--')
+
+    sp_crystal_wake = subplot(sp_ctr, title='Crystal wake', xlabel='$t$ (fs)', ylabel=r'$|\tilde{G}^2_{00}|$ (fs$^{-2}$)')
+    sp_ctr +=1
+    sp_crystal_wake.set_yscale('log')
+
+    sp_crystal_trans = subplot(sp_ctr, title='Crystal and seed spectrum', xlabel='$E$ (eV)', ylabel='Intensity (arb. units)')
+    sp_ctr += 1
+
+    xx = seed_data['mult_outp']['mult_photon_energy'] + xx_ref
+    yy = yy0 = seed_data['mult_outp']['mult_spectrum']
+    yy = np.abs(yy - yy[-1])**2
+    mask = np.abs(xx - xx_ref) < seed_spectrum_plot_range/2
+
+    f_diff = (xx[1]-xx[0])*e/h
+    wake_time = np.fft.fftshift(np.fft.fftfreq(len(xx),f_diff))
+    wake = np.fft.fftshift(np.fft.fft(np.fft.fftshift(yy0-yy0[-1]))*(f_diff))
+    mask_t = wake_time>0
+    sp_crystal_wake.plot(wake_time[mask_t]*1e15, np.abs(wake[mask_t])**2/1e30)
+
+    yy2 = np.abs(seed_data['mult_outp']['spectrum_wake'])**2
+    yy2 = yy2/yy2.max()*yy.max()
+
+    time = seed_data['s']/c
+    field = np.sqrt(seed_data['power'])
+    phase = seed_data['phase']
+
+    time2, field2, phase2 = simulation.prepare_arrays(time, field, phase, multiply_length=5)
+    xx3, yy3 = simulation.get_frequency_spectrum2(time2, field2, phase2, sim2['Global/lambdaref'])
+    xx3 = xx3*h/e
+    mask3 = np.abs(xx3 - xx_ref) < seed_spectrum_plot_range/2
+    yy3 = yy3/yy3[mask3].max()*yy.max()
+
+    #sp_crystal_trans.plot(xx[mask], yy2[mask], label='Entire wake')
+    sp_crystal_trans.plot(xx3[mask3], yy3[mask3], label='Wake seen by beam')
+    sp_crystal_trans.plot(xx[mask], yy[mask], label='Crystal trans.')
+
+    mask_t = seed_data['mult_outp']['time'] > 0
+
+    sp_all_seed_power = subplot(sp_ctr, title='Transmitted pulse amp', xlabel='$t$ (fs)', ylabel='$P$ (W)')
+    sp_ctr += 1
+    sp_all_seed_power.set_yscale('log')
+    sp_all_seed_power.plot(seed_data['mult_outp']['time'][mask_t]*1e15, seed_data['mult_outp']['power'][mask_t])
+
+    sp_all_seed_phase = sp_all_seed_power.twinx()
+    sp_all_seed_phase.set_ylabel('Phase (rad)', color='tab:orange')
+    mask_phase = seed_data['mult_outp']['time'] > seed_data['t_min']
+    sp_all_seed_phase.plot(seed_data['mult_outp']['time'][mask_phase]*1e15, seed_data['mult_outp']['phase'][mask_phase], color='tab:orange')
+
+    sp_all_seed_power.axvline(seed_data['t_min']*1e15, color='black', ls='--')
+    sp_all_seed_power.axvline(seed_data['t_max']*1e15, color='black', ls='--')
+
+    z_index = sim2.z_index(s_stage2) if s_stage2 else -1
+
+    xx4, yy4 = sim2.get_frequency_spectrum(z_index, multiply_length=5)
+    xx4 = xx4*h/e
+    mask = np.abs(xx4 - xx_ref) < seed_spectrum_plot_range/2
+    yy4 = yy4/yy4.max()*yy.max()
+
+    sp_crystal_trans.plot(xx[mask], yy4[mask], label='FEL spectrum')
+    sp_crystal_trans.legend()
+
+    sp_wake_actual = subplot(sp_ctr, title='Wake input file', xlabel='$s$ ($\mu$m)', ylabel='$P$ (W)')
+    sp_ctr += 1
+    sp_wake_actual.set_yscale('log')
+    sp_wake_phase = sp_wake_actual.twinx()
+    sp_wake_phase.set_ylabel('Phase (rad)', color='tab:orange')
+
+    sp_wake_actual.plot(seed_data['s']*1e6, seed_data['power'])
+    sp_wake_phase.plot(seed_data['s']*1e6, seed_data['phase'], color='tab:orange')
+
+    current = sim2['Beam/current'][0]
+    mask_current = current != 0
+    current_s = sim2['Global/s'][mask_current]
+
+    sp_wake_actual.axvline(current_s[0]*1e6, color='black', ls='--')
+    sp_wake_actual.axvline(current_s[-1]*1e6, color='black', ls='--')
 
 
     return fig, subplots
-
-
-
 

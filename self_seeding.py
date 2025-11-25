@@ -457,8 +457,8 @@ class SeedGenerator:
             'mult_outp': mult_outp,
             'infile': self.sim.infile,
             'z_index': self.z_index,
-            'cut': self.crystal.cut,
-            'hkl': self.crystal.hkl,
+            'cut': np.array(self.crystal.cut),
+            'hkl': np.array(self.crystal.hkl),
             })
         return seed_dict
 
