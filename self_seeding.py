@@ -453,7 +453,13 @@ class SeedGenerator:
         shift = self.sim.time[current_mask].min()
 
         tmin, tmax = delay+shift, delay+bunch_len/c+shift
-        seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={'mult_outp': mult_outp})
+        seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={
+            'mult_outp': mult_outp,
+            'infile': self.sim.infile,
+            'z_index': self.z_index,
+            'cut': self.crystal.cut,
+            'hkl': self.crystal.hkl,
+            })
         return seed_dict
 
 def generate_seed(sim, crystal, z_pos, max_time, *write_args):

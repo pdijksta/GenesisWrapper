@@ -1,7 +1,10 @@
 import numpy as np
 from scipy.constants import c, m_e, e, h
 import matplotlib.pyplot as plt
-from . import myplotstyle as ms
+
+from PassiveWFMeasurement import myplotstyle as ms
+from PassiveWFMeasurement import h5_storage
+
 from .gaussfit import GaussFit
 
 m_e_eV = m_e*c**2/e
@@ -207,4 +210,46 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
             }
 
     return outp_dict
+
+def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True):
+    if standard_plot:
+        if sim1:
+            plot(sim1)
+        plot(sim2)
+
+    seed_data = h5_storage.loadH5Recursive(seed_file)
+
+    fig = ms.figure('Self-seeding simulation %s' % sim2.infile)
+    subplots = []
+    _subplot = ms.subplot_factory(3, 4)
+    sp_ctr = 1
+
+    def subplot(*args, **kwargs):
+        sp = _subplot(*args, **kwargs)
+        subplots.append(sp)
+        return sp
+
+    sp_pulse_energy_evo = subplot(sp_ctr, title='Pulse energy evo', xlabel='$s$ (m)', ylabel='$E$ (J)')
+    sp_ctr += 1
+    sp_pulse_energy_evo.set_yscale('log')
+
+    if sim1:
+        z_index = seed_data['z_index']
+        zplot1 = sim1.zplot[:z_index]
+        zplot = np.concatenate([zplot1, zplot1[-1]+sim2.zplot])
+        pulse_energy = np.concatenate([sim1.get_all_pulse_energy()[:z_index], sim2.get_all_pulse_energy()])
+    else:
+        zplot = sim2.zplot
+        pulse_energy = sim2.get_all_pulse_energy()
+
+    sp_pulse_energy_evo.plot(zplot, pulse_energy)
+
+    if sim1:
+        sp_pulse_energy_evo.axvline(zplot1[-1], ls='--', color='black')
+
+
+    return fig, subplots
+
+
+
 
