@@ -383,7 +383,7 @@ class SeedPower:
                 'power': self.power_amplitude[mask][::-1],
                 'phase': self.phase[mask][::-1],
                 't_min': t_min,
-                't_max': t_min,
+                't_max': t_max,
                 's_0': s_0,
                 }
         if add_dict:
@@ -450,8 +450,9 @@ class SeedGenerator:
         current_mask = self.sim['Beam/current'][0] != 0
         blen_arr = self.sim['Global/s'][current_mask]
         bunch_len = abs(blen_arr[-1] - blen_arr[0])
+        shift = self.sim.time[current_mask].min()
 
-        tmin, tmax = delay, delay+bunch_len/c
+        tmin, tmax = delay+shift, delay+bunch_len/c+shift
         seed_dict = seed_power.writeH5(filename, tmin, tmax, 0, add_dict={'mult_outp': mult_outp})
         return seed_dict
 
