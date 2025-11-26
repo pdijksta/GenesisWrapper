@@ -299,6 +299,10 @@ class Multiplication:
                 'photon_energy_sim_ref': photon_energy_ref_sim,
                 }
         outp['mult_photon_energy'] = mult_photon_energy = photon_energy_sim - self.omega_ref*hbar/e
+        #print(np.diff(mult_photon_energy)[0])
+        #print(np.diff(self.Omega*hbar/e)[0])
+        outp['Omega'] = self.Omega
+        outp['R_00'] = self.R_00
         outp['mult_spectrum'] = mult_spectrum = np.interp(mult_photon_energy, self.Omega*hbar/e, self.R_00)
         outp['spectrum'] = spectrum_sim*mult_spectrum
         outp['spectrum_wake'] = spectrum_sim*(mult_spectrum-self.C)
@@ -424,7 +428,7 @@ class TransferFunction(TransferFunctionSimple):
 
 
 class SeedGenerator:
-    def __init__(self, sim, photon_energy_window=10, pew_size=1e5, z_index=-1, crystal=None, z_pos=None):
+    def __init__(self, sim, photon_energy_window=10, pew_size=1e5, z_index=-1, crystal=None, z_pos=None, min_time_length=300e-15):
         self.sim = sim
         if z_pos is None:
             self.z_index = z_index
@@ -432,7 +436,11 @@ class SeedGenerator:
             self.z_index = sim.z_index(z_pos)
         self.crystal = crystal
         self.Omega_arr = np.linspace(-photon_energy_window/2, photon_energy_window/2, int(pew_size))/hbar*e
-        self.freq, self.spectrum = self.sim.get_frequency_spectrum(self.z_index, multiply_length=5, key_amp='Field/power', key_phase='Field/phase-nearfield', type_='field')
+        multiply_length = int(np.ceil(min_time_length/(self.sim.time.max() - self.sim.time.min())))
+        if multiply_length % 2 == 0:
+            multiply_length += 1
+        #print('Multiply length %i' % multiply_length)
+        self.freq, self.spectrum = self.sim.get_frequency_spectrum(self.z_index, multiply_length=multiply_length, key_amp='Field/power', key_phase='Field/phase-nearfield', type_='field')
 
     def set_crystal(self, crystal):
         self.crystal = crystal

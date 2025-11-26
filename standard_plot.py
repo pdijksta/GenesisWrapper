@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.constants import c, m_e, e, h
+from scipy.constants import c, m_e, e, h, hbar; hbar
 import matplotlib.pyplot as plt
 
 from PassiveWFMeasurement import myplotstyle as ms
@@ -212,7 +212,7 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     return outp_dict
 
-def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spectrum_plot_range=30, figtitle=None, s_stage2=None, seed_spectrum_plot_range=4):
+def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sase_spectrum_plot_range=30, figtitle=None, s_stage2=None, seed_spectrum_plot_range=4):
     if standard_plot:
         if sim1:
             plot(sim1)
@@ -235,7 +235,7 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spect
     sp_ctr += 1
     sp_pulse_energy_evo.set_yscale('log')
 
-    seed_data = h5_storage.loadH5Recursive(seed_file)
+    seed_data = h5_storage.loadH5Recursive(seed_file_or_data) if type(seed_file_or_data) is str else seed_file_or_data
 
     s_stage2 = s_stage2_plot = s_stage2 or sim2.zplot[-1]
 
@@ -272,7 +272,12 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spect
 
     xx = seed_data['mult_outp']['mult_photon_energy'] + xx_ref
     yy = yy0 = seed_data['mult_outp']['mult_spectrum']
+    #xx5 = seed_data['mult_outp']['Omega']*hbar/e+xx_ref
+    #yy5 = seed_data['mult_outp']['R_00']
+    #mask5 = np.abs(xx5 - xx_ref) < seed_spectrum_plot_range/2
+
     yy = np.abs(yy - yy[-1])**2
+    #yy5 = np.abs(yy5 - yy5[-1])**2
     mask = np.abs(xx - xx_ref) < seed_spectrum_plot_range/2
 
     f_diff = (xx[1]-xx[0])*e/h
@@ -288,7 +293,7 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spect
     field = np.sqrt(seed_data['power'])
     phase = seed_data['phase']
 
-    time2, field2, phase2 = simulation.prepare_arrays(time, field, phase, multiply_length=5)
+    time2, field2, phase2 = simulation.prepare_arrays(time, field, phase, multiply_length=11)
     xx3, yy3 = simulation.get_frequency_spectrum2(time2, field2, phase2, sim2['Global/lambdaref'])
     xx3 = xx3*h/e
     mask3 = np.abs(xx3 - xx_ref) < seed_spectrum_plot_range/2
@@ -297,10 +302,11 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spect
     #sp_crystal_trans.plot(xx[mask], yy2[mask], label='Entire wake')
     sp_crystal_trans.plot(xx3[mask3], yy3[mask3], label='Wake seen by beam')
     sp_crystal_trans.plot(xx[mask], yy[mask], label='Crystal trans.')
+    #sp_crystal_trans.plot(xx5[mask5], yy5[mask5], label='Crystal trans.')
 
     mask_t = seed_data['mult_outp']['time'] > 0
 
-    sp_all_seed_power = subplot(sp_ctr, title='Transmitted pulse amp', xlabel='$t$ (fs)', ylabel='$P$ (W)')
+    sp_all_seed_power = subplot(sp_ctr, title='Transmitted pulse', xlabel='$t$ (fs)', ylabel='$P$ (W)')
     sp_ctr += 1
     sp_all_seed_power.set_yscale('log')
     sp_all_seed_power.plot(seed_data['mult_outp']['time'][mask_t]*1e15, seed_data['mult_outp']['power'][mask_t])
