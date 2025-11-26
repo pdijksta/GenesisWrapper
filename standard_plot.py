@@ -320,7 +320,7 @@ def self_seeding_plot(sim2, seed_file, sim1=None, standard_plot=True, sase_spect
     mask = np.abs(xx4 - xx_ref) < seed_spectrum_plot_range/2
     yy4 = yy4/yy4.max()*yy.max()
 
-    sp_crystal_trans.plot(xx[mask], yy4[mask], label='FEL spectrum')
+    sp_crystal_trans.plot(xx4[mask], yy4[mask], label='FEL spectrum')
     sp_crystal_trans.legend()
 
     sp_wake_actual = subplot(sp_ctr, title='Wake input file', xlabel='$s$ ($\mu$m)', ylabel='$P$ (W)')
