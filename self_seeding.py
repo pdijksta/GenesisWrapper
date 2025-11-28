@@ -468,6 +468,7 @@ class SeedGenerator:
             'cut': np.array(self.crystal.cut),
             'hkl': np.array(self.crystal.hkl),
             'd': self.crystal.material_properties['d'],
+            'material': self.crystal.material,
             })
         return seed_dict
 
