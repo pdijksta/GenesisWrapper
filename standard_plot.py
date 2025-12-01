@@ -212,12 +212,11 @@ def plot(sim, title=None, s_final_pulse=None, n_slices=10, fit_pulse_length=None
 
     return outp_dict
 
-def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sase_spectrum_plot_range=30, figtitle=None, s_stage2=None, seed_spectrum_plot_range=4):
+def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sase_spectrum_plot_range=30, figtitle=None, s_stage1=None, s_stage2=None, seed_spectrum_plot_range=4):
     if standard_plot:
         if sim1:
-            plot(sim1)
+            plot(sim1, s_final_pulse=s_stage1)
         plot(sim2)
-
 
     figtitle = figtitle or 'Self-seeding simulation %s' % sim2.infile
     fig = ms.figure(figtitle)
