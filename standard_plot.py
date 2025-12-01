@@ -306,7 +306,7 @@ def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sa
 
     mask_t = seed_data['mult_outp']['time'] > 0
 
-    sp_all_seed_power = subplot(sp_ctr, title='Transmitted pulse', xlabel='$t$ (fs)', ylabel='$P$ (W)')
+    sp_all_seed_power = subplot(sp_ctr, title='Transmitted pulse (head to left)', xlabel='$t$ (fs)', ylabel='$P$ (W)')
     sp_ctr += 1
     sp_all_seed_power.set_yscale('log')
     sp_all_seed_power.plot(seed_data['mult_outp']['time'][mask_t]*1e15, seed_data['mult_outp']['power'][mask_t])
@@ -329,7 +329,7 @@ def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sa
     sp_crystal_trans.plot(xx4[mask], yy4[mask], label='FEL spectrum')
     sp_crystal_trans.legend()
 
-    sp_wake_actual = subplot(sp_ctr, title='Wake input file', xlabel='$s$ ($\mu$m)', ylabel='$P$ (W)')
+    sp_wake_actual = subplot(sp_ctr, title='Wake input file (head to right)', xlabel='$s$ ($\mu$m)', ylabel='$P$ (W)')
     sp_ctr += 1
     sp_wake_actual.set_yscale('log')
     sp_wake_phase = sp_wake_actual.twinx()
