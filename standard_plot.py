@@ -216,7 +216,7 @@ def self_seeding_plot(sim2, seed_file_or_data, sim1=None, standard_plot=True, sa
     if standard_plot:
         if sim1:
             plot(sim1, s_final_pulse=s_stage1)
-        plot(sim2)
+        plot(sim2, s_final_pulse=s_stage2)
 
     figtitle = figtitle or 'Self-seeding simulation %s' % sim2.infile
     fig = ms.figure(figtitle)
