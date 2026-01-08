@@ -44,20 +44,6 @@ crystal_table['diamond'] = { # Shvyd'Ko and Lindberg 2012, Appendix
             },
         }
 
-#chi_0_dict = {
-#        # xr0, xi0 from https://x-server.gmca.aps.anl.gov/
-#        ('diamond', 0, 0, 4, 9.83e3): -0.15124E-4+ 1j*0.13222e-7,
-#        ('diamond', 0, 0, 4, 9.70e3): -0.15532E-4+ 1j*0.13981e-7,
-#        }
-#
-#chi_h_dict = {
-#        # xrh, xih from https://x-server.gmca.aps.anl.gov/
-#        # Somehow need to flip sign of real part
-#        ('diamond', 0, 0, 4, 9.83e3, 'sigma'): -0.37824e-5 + 1j*0.12060e-7,
-#        ('diamond', 0, 0, 4, 9.70e3, 'sigma'): -0.38851e-5 + 1j*0.12768e-7,
-#        }
-
-
 def plane_norm(plane_points):
     vec_1 = plane_points[0]-plane_points[1]
     vec_2 = plane_points[0]-plane_points[2]
@@ -253,12 +239,12 @@ class Crystal(SimpleCrystal):
         """
         Eq. 38 from Shvydko & Lindberg 2012
         """
-        G = 1 # Assumption for symmetric crystals (?). Anyway it cancels out for R_00.
+        #G = 1 # Assumption for symmetric crystals (?). Anyway it cancels out for R_00.
         y = self.calc_y(Omega)
         Y_1 = -y + sqrt(y**2 + self.b/np.abs(self.b))
         Y_2 = -y - sqrt(y**2 + self.b/np.abs(self.b))
-        R_1 = G*Y_1
-        R_2 = G*Y_2
+        R_1 = Y_1
+        R_2 = Y_2
         kappa_1d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_1
         kappa_2d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
 
@@ -267,6 +253,27 @@ class Crystal(SimpleCrystal):
             return TransferFunction(Omega, R_00, self.C, self.omega_0)
         elif outp == 'mult':
             return Multiplication(Omega, R_00, self.C, self.omega_0)
+
+    def calc_R_0H(self, Omega, outp='tf'):
+        """
+        Eq. 38 from Shvydko & Lindberg 2012
+        """
+        G = min(np.sqrt(np.abs(self.b)), 1)
+        y = self.calc_y(Omega)
+        Y_1 = -y + sqrt(y**2 + self.b/np.abs(self.b))
+        Y_2 = -y - sqrt(y**2 + self.b/np.abs(self.b))
+        R_1 = G*Y_1
+        R_2 = G*Y_2
+        kappa_1d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_1
+        kappa_2d = self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*self.gamma_0) + self.A/2*Y_2
+
+        exp_ = np.exp(1j*(kappa_1d-kappa_2d))
+        R_0H = R_1*R_2*(1-exp_)/(R_2-R_1*exp_)
+        if outp == 'tf':
+            return TransferFunction(Omega, R_0H, 0, self.omega_0)
+        elif outp == 'mult':
+            return Multiplication(Omega, R_0H, 0, self.omega_0)
+
 
     def get_mult(self, Omega):
         return self.calc_R_00(Omega, outp='mult')
