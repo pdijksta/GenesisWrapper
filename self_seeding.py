@@ -259,6 +259,8 @@ class Crystal(SimpleCrystal):
         Eq. 38 from Shvydko & Lindberg 2012
         """
         G = min(np.sqrt(np.abs(self.b)), 1)
+        #G = np.sqrt(np.abs(self.b)) # How can it be larger than 1 under some circumastances? Open question...
+        #G = 1
         y = self.calc_y(Omega)
         Y_1 = -y + sqrt(y**2 + self.b/np.abs(self.b))
         Y_2 = -y - sqrt(y**2 + self.b/np.abs(self.b))
@@ -273,7 +275,6 @@ class Crystal(SimpleCrystal):
             return TransferFunction(Omega, R_0H, 0, self.omega_0)
         elif outp == 'mult':
             return Multiplication(Omega, R_0H, 0, self.omega_0)
-
 
     def get_mult(self, Omega):
         return self.calc_R_00(Omega, outp='mult')
