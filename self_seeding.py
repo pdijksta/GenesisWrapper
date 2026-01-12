@@ -122,7 +122,12 @@ def plane_angle(plane_coordinates_1,plane_coordinates_2):
     norm2=plane_coordinates_2[0:3]
     return np.arccos((norm1[0]*norm2[0]+norm1[1]*norm2[1]+norm1[2]*norm2[2])/np.sqrt(norm1[0]**2+norm1[1]**2+norm1[2]**2)/np.sqrt(norm2[0]**2+norm2[1]**2+norm2[2]**2))
 
-class SimpleCrystal:
+
+class BraggException(ValueError):
+    pass
+
+
+class Crystal:
     def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True, allow_laue=False):
         self.material = material
         self.hkl = hkl
@@ -193,34 +198,6 @@ class SimpleCrystal:
 
         self.C = np.exp(1j*self.material_properties['chi_0'] * (self.K0*self.material_properties['d'])/(2*np.cos(self.psi_0))) # Eq. 45 from Shvydko & Lindberg 2012
 
-    def calc_G_tilde_00_simple(self, xi_0):
-        """
-        Eq. 6 of Yang & ShvydKo (2013)
-        """
-        mask = xi_0 != 0
-        arg = np.sqrt(xi_0[mask]/self.Tau_0 * (1+xi_0[mask]/self.Tau_d))
-        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
-        G_tilde_00[~mask] = -1/(4*self.Tau_0)
-        G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
-        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
-
-    def calc_G_tilde_00_simple2(self, xi_0):
-        """
-        Eq. 9 of Yang & ShvydKo (2013)
-        """
-        mask = xi_0 != 0
-        arg = np.sqrt(xi_0[mask]/self.Tau_0)
-        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
-        G_tilde_00[~mask] = 1/(4*self.Tau_0) * np.sign(self.b)
-        G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
-        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
-
-class BraggException(ValueError):
-    pass
-
-class Crystal(SimpleCrystal):
-    def __init__(self, *args, **kwargs):
-        SimpleCrystal.__init__(self, *args, **kwargs)
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
         if self.A < 2*np.pi: # Reflection bw would be smaller than Transmission bw, which should not be.
@@ -295,6 +272,30 @@ class Crystal(SimpleCrystal):
         outp[mask] = self.C*np.exp(-self.A/2*(1j*y1+np.sqrt(1-y1**2)))
         outp[~mask] = self.C*np.exp(1j*self.A/2*(-y2+np.sign(y2)*np.sqrt(y2**2-1)))
         return TransferFunction(Omega, outp, self.C, self.omega_0)
+
+
+    def calc_G_tilde_00_simple(self, xi_0):
+        """
+        Eq. 6 of Yang & ShvydKo (2013)
+        """
+        mask = xi_0 != 0
+        arg = np.sqrt(xi_0[mask]/self.Tau_0 * (1+xi_0[mask]/self.Tau_d))
+        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
+        G_tilde_00[~mask] = -1/(4*self.Tau_0)
+        G_tilde_00[mask] = -1/(2*self.Tau_0) * jv(1, arg)/arg
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
+
+    def calc_G_tilde_00_simple2(self, xi_0):
+        """
+        Eq. 9 of Yang & ShvydKo (2013)
+        """
+        mask = xi_0 != 0
+        arg = np.sqrt(xi_0[mask]/self.Tau_0)
+        G_tilde_00 = np.empty_like(xi_0, dtype=complex)
+        G_tilde_00[~mask] = 1/(4*self.Tau_0) * np.sign(self.b)
+        G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
+        return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
+
 
 class Multiplication:
     def __init__(self, Omega, R_00, C, omega_ref):
