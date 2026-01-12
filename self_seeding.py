@@ -128,7 +128,7 @@ class BraggException(ValueError):
 
 
 class Crystal:
-    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True, allow_laue=False):
+    def __init__(self, material, cut, hkl, thickness, photon_energy, polarization='sigma', force_table=True, allow_laue=False, allow_high_reflection_bw=True):
         self.material = material
         self.hkl = hkl
         self.cut = cut
@@ -200,7 +200,7 @@ class Crystal:
 
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
-        if self.A < 2*np.pi: # Reflection bw would be smaller than Transmission bw, which should not be.
+        if not allow_high_reflection_bw and self.A < 2*np.pi: # Reflection bw would be smaller than Transmission bw, which should not be.
             raise BraggException
         self.w_H = self.material_properties['w_s_H'] * (self.b-1)/(2*self.b) # Eq. 44 from Shvydko & Lindberg 2012
         Tau_s_Lambda = 2*self.material_properties['Lambda_bar_s_H']/c # Eq. 43 from Shvydko & Lindberg 2012
@@ -238,8 +238,8 @@ class Crystal:
         """
         Eq. 38 from Shvydko & Lindberg 2012
         """
-        G = min(np.sqrt(np.abs(self.b)), 1)
-        #G = np.sqrt(np.abs(self.b)) # How can it be larger than 1 under some circumastances? Open question...
+        #G = min(np.sqrt(np.abs(self.b)), 1)
+        G = np.sqrt(np.abs(self.b)) # How can it be larger than 1 under some circumastances? Open question...
         #G = 1
         y = self.calc_y(Omega)
         Y_1 = -y + sqrt(y**2 + self.b/np.abs(self.b))
