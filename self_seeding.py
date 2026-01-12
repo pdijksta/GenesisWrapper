@@ -129,9 +129,6 @@ class SimpleCrystal:
         self.cut = cut
         self.photon_energy = photon_energy
         self.polarization = polarization
-        if polarization != 'sigma':
-            raise ValueError('Pi polarization not implemented!')
-
         h_, k_, l_ = hkl
         for permutation in itertools.permutations([abs(h_), abs(k_), abs(l_)]):
             if permutation in crystal_table[self.material]:
@@ -148,7 +145,6 @@ class SimpleCrystal:
         self.lambda0 = h*c/(self.photon_energy*e)
         self.K0 = 2*np.pi/self.lambda0
         self.omega_0 = self.K0*c
-        self.P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
 
         a1=[A, 0, 0]
         a2=[0, A, 0]
@@ -160,6 +156,7 @@ class SimpleCrystal:
             raise bragg_data.PhotonEnergyException('Angle impossible')
         self.theta = np.arcsin(theta_arg) # Bragg's law
         self.eta = plane_angle(cut, hkl) # angle between H and surface
+        self.P = 1 if self.polarization == 'sigma' else np.cos(2*self.theta)
 
         if -self.theta < self.eta < self.theta: # Caption of Fig. 1 from Shvydko & Lindberg 2012
             self.type = 'Bragg'
@@ -218,15 +215,21 @@ class SimpleCrystal:
         G_tilde_00[mask] = 1/(2*self.Tau_0) * jv(1, arg)/arg * np.sign(self.b)
         return TransferFunctionSimple(self.C, xi_0, G_tilde_00, self.omega_0)
 
+class BraggException(ValueError):
+    pass
 
 class Crystal(SimpleCrystal):
     def __init__(self, *args, **kwargs):
         SimpleCrystal.__init__(self, *args, **kwargs)
         self.Lambda_bar_H = np.sqrt(self.gamma_0*np.abs(self.gamma_H))/np.sin(self.theta)*self.material_properties['Lambda_bar_s_H'] # Eq. 40 from Shvydko & Lindberg 2012
         self.A = self.material_properties['d'] / self.Lambda_bar_H
+        if self.A < 2*np.pi: # Reflection bw would be smaller than Transmission bw, which should not be.
+            raise BraggException
         self.w_H = self.material_properties['w_s_H'] * (self.b-1)/(2*self.b) # Eq. 44 from Shvydko & Lindberg 2012
         Tau_s_Lambda = 2*self.material_properties['Lambda_bar_s_H']/c # Eq. 43 from Shvydko & Lindberg 2012
         self.Tau_Lambda = Tau_s_Lambda*np.sqrt(np.abs(self.b))*np.sin(self.theta) # Eq. 42 from Shvydko & Lindberg 2012
+        self.Delta_E_H = 2*hbar/e/self.Tau_Lambda # Eq. 50 from Shvydko & Lindberg 2012
+        self.Delta_E_0 = self.Delta_E_H * self.A/(2*np.pi) # Eq. 52 from Shvydko & Lindberg 2012
 
     def calc_y(self, Omega):
         """
