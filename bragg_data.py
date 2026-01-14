@@ -47,4 +47,3 @@ def get_x0h_data(material, h_, k_, l_, photon_energy_eV):
         outp[key] = np.interp(photon_energy_eV, data_photon_energy, this_data[key])
     return outp
 
-
